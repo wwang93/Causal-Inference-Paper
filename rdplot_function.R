@@ -1,6 +1,4 @@
 # the following r code refers to Suk (2024)Regression discontinuity designs in education: a practitioner’s guide. Asia Pacific Educ. Rev. 25, 629–645. https://doi.org/10.1007/s12564-024-09956-3
-
-
 library("scales")
 
 

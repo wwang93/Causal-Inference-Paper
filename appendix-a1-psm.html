@@ -1,0 +1,1434 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.7.32">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>Appendix A1. Propensity Score Weighting (CBPS-IPTW)</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="appendix-a1-psm_files/libs/clipboard/clipboard.min.js"></script>
+<script src="appendix-a1-psm_files/libs/quarto-html/quarto.js" type="module"></script>
+<script src="appendix-a1-psm_files/libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="appendix-a1-psm_files/libs/quarto-html/popper.min.js"></script>
+<script src="appendix-a1-psm_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="appendix-a1-psm_files/libs/quarto-html/anchor.min.js"></script>
+<link href="appendix-a1-psm_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="appendix-a1-psm_files/libs/quarto-html/quarto-syntax-highlighting-37eea08aefeeee20ff55810ff984fec1.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="appendix-a1-psm_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="appendix-a1-psm_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="appendix-a1-psm_files/libs/bootstrap/bootstrap-bb462d781dde1847d9e3ccf7736099dd.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+
+
+</head>
+
+<body class="quarto-light">
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+<div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+  <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">Table of contents</h2>
+   
+  <ul>
+  <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview">Overview</a></li>
+  <li><a href="#a1.1-setup" id="toc-a1.1-setup" class="nav-link" data-scroll-target="#a1.1-setup">A1.1 Setup</a></li>
+  <li><a href="#a1.2-load-data" id="toc-a1.2-load-data" class="nav-link" data-scroll-target="#a1.2-load-data">A1.2 Load data</a></li>
+  <li><a href="#a1.3-keep-variables-used-in-the-example" id="toc-a1.3-keep-variables-used-in-the-example" class="nav-link" data-scroll-target="#a1.3-keep-variables-used-in-the-example">A1.3 Keep variables used in the example</a></li>
+  <li><a href="#a1.4-recode-missing-categories-as-na" id="toc-a1.4-recode-missing-categories-as-na" class="nav-link" data-scroll-target="#a1.4-recode-missing-categories-as-na">A1.4 Recode missing categories as NA</a></li>
+  <li><a href="#a1.5-construct-analysis-variables-treatment-covariates" id="toc-a1.5-construct-analysis-variables-treatment-covariates" class="nav-link" data-scroll-target="#a1.5-construct-analysis-variables-treatment-covariates">A1.5 Construct analysis variables (treatment + covariates)</a></li>
+  <li><a href="#a1.6-complete-case-analytic-sample" id="toc-a1.6-complete-case-analytic-sample" class="nav-link" data-scroll-target="#a1.6-complete-case-analytic-sample">A1.6 Complete-case analytic sample</a></li>
+  <li><a href="#a1.7-estimate-cbps-weights-ate" id="toc-a1.7-estimate-cbps-weights-ate" class="nav-link" data-scroll-target="#a1.7-estimate-cbps-weights-ate">A1.7 Estimate CBPS weights (ATE)</a></li>
+  <li><a href="#a1.8-covariate-balance-before-vs-after-weighting" id="toc-a1.8-covariate-balance-before-vs-after-weighting" class="nav-link" data-scroll-target="#a1.8-covariate-balance-before-vs-after-weighting">A1.8 Covariate balance (before vs after weighting)</a></li>
+  <li><a href="#a1.9-weighted-outcome-model-survey-regression" id="toc-a1.9-weighted-outcome-model-survey-regression" class="nav-link" data-scroll-target="#a1.9-weighted-outcome-model-survey-regression">A1.9 Weighted outcome model (survey regression)</a></li>
+  <li><a href="#a1.10-sensitivity-analysis-konfound" id="toc-a1.10-sensitivity-analysis-konfound" class="nav-link" data-scroll-target="#a1.10-sensitivity-analysis-konfound">A1.10 Sensitivity analysis (Konfound)</a></li>
+  </ul>
+</nav>
+</div>
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<div class="quarto-title-block"><div><h1 class="title">Appendix A1. Propensity Score Weighting (CBPS-IPTW)</h1><button type="button" class="btn code-tools-button dropdown-toggle" id="quarto-code-tools-menu" data-bs-toggle="dropdown" aria-expanded="false"><i class="bi"></i> Code</button><ul class="dropdown-menu dropdown-menu-end" aria-labelelledby="quarto-code-tools-menu"><li><a id="quarto-show-all-code" class="dropdown-item" href="javascript:void(0)" role="button">Show All Code</a></li><li><a id="quarto-hide-all-code" class="dropdown-item" href="javascript:void(0)" role="button">Hide All Code</a></li><li><hr class="dropdown-divider"></li><li><a id="quarto-view-source" class="dropdown-item" href="javascript:void(0)" role="button">View Source</a></li></ul></div></div>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<section id="overview" class="level2">
+<h2 class="anchored" data-anchor-id="overview">Overview</h2>
+<p>This appendix example estimates the average treatment effect (ATE) of having an IEP on science self-efficacy (<code>X1SCIEFF</code>). We (1) build an analytic dataset, (2) estimate propensity score weights using CBPS, (3) check covariate balance, (4) fit a weighted outcome model, and (5) run a sensitivity analysis with <a href="https://cran.r-project.org/web/packages/konfound/index.html">konfound</a>.</p>
+</section>
+<section id="a1.1-setup" class="level2">
+<h2 class="anchored" data-anchor-id="a1.1-setup">A1.1 Setup</h2>
+<div class="cell">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">12345</span>)</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Packages used in this example</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(dplyr)</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(CBPS)</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(twang)</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(survey)</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(konfound)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</div>
+</section>
+<section id="a1.2-load-data" class="level2">
+<h2 class="anchored" data-anchor-id="a1.2-load-data">A1.2 Load data</h2>
+<div class="cell">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="fu">load</span>(<span class="st">"hsls_17_student_pets_sr_v1_0.RData"</span>)</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>hsls <span class="ot">&lt;-</span> hsls_17_student_pets_sr_v1_0</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Quick sanity check</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="co">#dim(hsls)</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+</div>
+</section>
+<section id="a1.3-keep-variables-used-in-the-example" class="level2">
+<h2 class="anchored" data-anchor-id="a1.3-keep-variables-used-in-the-example">A1.3 Keep variables used in the example</h2>
+<div class="cell">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb3"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>vars_needed <span class="ot">&lt;-</span> dplyr<span class="sc">::</span><span class="fu">select</span>(hsls,</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    STU_ID,        <span class="co"># student ID</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    <span class="co"># treatment</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>    X1IEPFLAG,     <span class="co"># IEP status</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>    <span class="co"># outcome</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>    X1SCIEFF,      <span class="co"># science self-efficacy</span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>    <span class="co"># covariates</span></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>    X1SEX,         <span class="co"># gender</span></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>    X1RACE,        <span class="co"># race</span></span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>    X1DUALLANG,    <span class="co"># language background</span></span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>    X1LOCALE,      <span class="co"># locale</span></span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>    X1SESQ5,       <span class="co"># SES quintile</span></span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>    P1MARSTAT,     <span class="co"># parents' marital status</span></span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>    P1HIDEG1,      <span class="co"># parent 1 highest degree</span></span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>    P1HIDEG2,      <span class="co"># parent 2 highest degree</span></span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>    P1SLD,         <span class="co"># parent report: learning disability</span></span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>    P1DD           <span class="co"># parent report: developmental delay</span></span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(vars_needed)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>    STU_ID                            X1IEPFLAG        X1SCIEFF     
+ Length:23503       Student has no IEP     : 8115   Min.   :-9.000  
+ Class :character   Student has an IEP     : 2069   1st Qu.:-7.000  
+ Mode  :character   Item legitimate skip/NA:    0   Median :-0.360  
+                    Unit non-response      :    0   Mean   :-1.967  
+                    Missing                :13319   3rd Qu.: 0.250  
+                                                    Max.   : 1.830  
+                                                                    
+                     X1SEX                                        X1RACE     
+ Male                   :11973   White, non-Hispanic                 :12082  
+ Female                 :11524   Hispanic, race specified            : 3375  
+ Item legitimate skip/NA:    0   Black/African-American, non-Hispanic: 2450  
+ Unit non-response      :    0   Asian, non-Hispanic                 : 1952  
+ Missing                :    6   More than one race, non-Hispanic    : 1941  
+                                 Missing                             : 1006  
+                                 (Other)                             :  697  
+                                             X1DUALLANG   
+ First language is English only                   :17863  
+ First language is a non-English language only    : 2201  
+ First language is English and non-English equally: 1355  
+ Item legitimate skip/NA                          :    0  
+ Unit non-response                                : 2059  
+ Missing                                          :   25  
+                                                          
+                    X1LOCALE                        X1SESQ5    
+ City                   :6689   Fifth quintile (highest):5519  
+ Suburb                 :8467   Fourth quintile         :4553  
+ Town                   :2788   Third quintile          :4233  
+ Rural                  :5559   Second quintile         :3705  
+ Item legitimate skip/NA:   0   First quintile (lowest) :3434  
+ Unit non-response      :   0   Unit non-response       :2059  
+ Missing                :   0   (Other)                 :   0  
+             P1MARSTAT                           P1HIDEG1   
+ Married          :12497   High school diploma or GED:6720  
+ Unit non-response: 6715   Unit non-response         :6715  
+ Divorced         : 2115   Bachelor's degree         :3853  
+ Never Married    :  999   Associate's degree        :2534  
+ Separated        :  534   Master's degree           :1594  
+ Missing          :  342   Less than high school     :1327  
+ (Other)          :  301   (Other)                   : 760  
+                       P1HIDEG2                        P1SLD      
+ Unit non-response         :6715   No                     :14162  
+ High school diploma or GED:5535   Yes                    : 1380  
+ Item legitimate skip/NA   :3619   Item legitimate skip/NA:    0  
+ Bachelor's degree         :2803   Unit non-response      : 6715  
+ Associate's degree        :1570   Missing                : 1246  
+ Less than high school     :1286                                  
+ (Other)                   :1975                                  
+                      P1DD      
+ No                     :14848  
+ Yes                    :  670  
+ Item legitimate skip/NA:    0  
+ Unit non-response      : 6715  
+ Missing                : 1270  
+                                
+                                </code></pre>
+</div>
+</div>
+</section>
+<section id="a1.4-recode-missing-categories-as-na" class="level2">
+<h2 class="anchored" data-anchor-id="a1.4-recode-missing-categories-as-na">A1.4 Recode missing categories as NA</h2>
+<p>Some HSLS variables code missingness as labeled categories.</p>
+<p>Here we convert those labels to <code>NA</code> so that downstream modeling behaves as expected.</p>
+<div class="cell">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb5"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>missing_levels <span class="ot">&lt;-</span> <span class="fu">c</span>(</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>  <span class="st">"Item legitimate skip/NA"</span>,</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>  <span class="st">"Unit non-response"</span>,</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>  <span class="st">"Missing"</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>vars_clean <span class="ot">&lt;-</span> vars_needed <span class="sc">%&gt;%</span></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="fu">across</span>(</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>    <span class="at">.cols =</span> <span class="fu">c</span>(X1IEPFLAG, X1SEX, X1RACE, X1DUALLANG, X1LOCALE,</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>              X1SESQ5, P1MARSTAT, P1HIDEG1, P1HIDEG2, P1SLD, P1DD),</span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>    <span class="at">.fns =</span> <span class="sc">~</span> <span class="fu">ifelse</span>(<span class="fu">as.character</span>(.x) <span class="sc">%in%</span> missing_levels, <span class="cn">NA</span>, <span class="fu">as.character</span>(.x))</span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>  ))</span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(vars_clean)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>    STU_ID           X1IEPFLAG            X1SCIEFF         X1SEX          
+ Length:23503       Length:23503       Min.   :-9.000   Length:23503      
+ Class :character   Class :character   1st Qu.:-7.000   Class :character  
+ Mode  :character   Mode  :character   Median :-0.360   Mode  :character  
+                                       Mean   :-1.967                     
+                                       3rd Qu.: 0.250                     
+                                       Max.   : 1.830                     
+    X1RACE           X1DUALLANG          X1LOCALE           X1SESQ5         
+ Length:23503       Length:23503       Length:23503       Length:23503      
+ Class :character   Class :character   Class :character   Class :character  
+ Mode  :character   Mode  :character   Mode  :character   Mode  :character  
+                                                                            
+                                                                            
+                                                                            
+  P1MARSTAT           P1HIDEG1           P1HIDEG2            P1SLD          
+ Length:23503       Length:23503       Length:23503       Length:23503      
+ Class :character   Class :character   Class :character   Class :character  
+ Mode  :character   Mode  :character   Mode  :character   Mode  :character  
+                                                                            
+                                                                            
+                                                                            
+     P1DD          
+ Length:23503      
+ Class :character  
+ Mode  :character  
+                   
+                   
+                   </code></pre>
+</div>
+</div>
+</section>
+<section id="a1.5-construct-analysis-variables-treatment-covariates" class="level2">
+<h2 class="anchored" data-anchor-id="a1.5-construct-analysis-variables-treatment-covariates">A1.5 Construct analysis variables (treatment + covariates)</h2>
+<p>The goal here is not to be clever—just to turn a handful of key survey fields into clean indicators that are easy to use in the weighting model.</p>
+<div class="cell">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>analytic <span class="ot">&lt;-</span> vars_clean <span class="sc">%&gt;%</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    <span class="co"># treatment: IEP</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">IEP =</span> <span class="fu">if_else</span>(X1IEPFLAG <span class="sc">==</span> <span class="st">"Student has an IEP"</span>, <span class="dv">1</span>, <span class="dv">0</span>, <span class="at">missing =</span> <span class="cn">NA</span>),</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>    <span class="co"># demographics</span></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">female =</span> <span class="fu">if_else</span>(X1SEX <span class="sc">==</span> <span class="st">"Female"</span>, <span class="dv">1</span>, <span class="dv">0</span>, <span class="at">missing =</span> <span class="cn">NA</span>),</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>    <span class="at">race_white =</span> <span class="fu">if_else</span>(X1RACE <span class="sc">==</span> <span class="st">"White, non-Hispanic"</span>, <span class="dv">1</span>, <span class="dv">0</span>, <span class="at">missing =</span> <span class="cn">NA</span>),</span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>    <span class="at">race_black =</span> <span class="fu">if_else</span>(X1RACE <span class="sc">==</span> <span class="st">"Black/African-American, non-Hispanic"</span>, <span class="dv">1</span>, <span class="dv">0</span>, <span class="at">missing =</span> <span class="cn">NA</span>),</span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>    <span class="at">race_asian =</span> <span class="fu">if_else</span>(X1RACE <span class="sc">==</span> <span class="st">" Asian, non-Hispanic "</span>, <span class="dv">1</span>, <span class="dv">0</span>, <span class="at">missing =</span> <span class="cn">NA</span>),</span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>    <span class="at">race_hispanic =</span> <span class="fu">if_else</span>(X1RACE <span class="sc">==</span> <span class="st">" Hispanic, race specified "</span>, <span class="dv">1</span>, <span class="dv">0</span>, <span class="at">missing =</span> <span class="cn">NA</span>),</span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>    <span class="co"># language / locale</span></span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>    <span class="at">dual_lang =</span> <span class="fu">if_else</span>(X1DUALLANG <span class="sc">==</span> <span class="st">"First language is English only"</span>, <span class="dv">1</span>, <span class="dv">0</span>, <span class="at">missing =</span> <span class="cn">NA</span>),</span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>    <span class="at">locale_rural =</span> <span class="fu">if_else</span>(X1LOCALE <span class="sc">==</span> <span class="st">"Rural"</span>, <span class="dv">1</span>, <span class="dv">0</span>, <span class="at">missing =</span> <span class="cn">NA</span>),</span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>    <span class="co"># family background</span></span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a>    <span class="at">divorced =</span> <span class="fu">if_else</span>(P1MARSTAT <span class="sc">%in%</span> <span class="fu">c</span>(<span class="st">"Divorced"</span>, <span class="st">"Separated"</span>), <span class="dv">1</span>, <span class="dv">0</span>, <span class="at">missing =</span> <span class="cn">NA</span>),</span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a>    <span class="at">bachelorabove1 =</span> <span class="fu">if_else</span>(P1HIDEG1 <span class="sc">%in%</span> <span class="fu">c</span>(<span class="st">"Bachelor's degree"</span>, <span class="st">"Master's degree"</span>), <span class="dv">1</span>, <span class="dv">0</span>, <span class="at">missing =</span> <span class="cn">NA</span>),</span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a>    <span class="at">bachelorabove2 =</span> <span class="fu">if_else</span>(P1HIDEG2 <span class="sc">%in%</span> <span class="fu">c</span>(<span class="st">"Bachelor's degree"</span>, <span class="st">"Master's degree"</span>), <span class="dv">1</span>, <span class="dv">0</span>, <span class="at">missing =</span> <span class="cn">NA</span>),</span>
+<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a>    <span class="co"># parent-reported conditions</span></span>
+<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a>    <span class="at">LD =</span> <span class="fu">if_else</span>(P1SLD <span class="sc">==</span> <span class="st">"Yes"</span>, <span class="dv">1</span>, <span class="dv">0</span>, <span class="at">missing =</span> <span class="cn">NA</span>),</span>
+<span id="cb7-25"><a href="#cb7-25" aria-hidden="true" tabindex="-1"></a>    <span class="at">DD =</span> <span class="fu">if_else</span>(P1DD <span class="sc">==</span> <span class="st">"Yes"</span>, <span class="dv">1</span>, <span class="dv">0</span>, <span class="at">missing =</span> <span class="cn">NA</span>)</span>
+<span id="cb7-26"><a href="#cb7-26" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">%&gt;%</span></span>
+<span id="cb7-27"><a href="#cb7-27" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
+<span id="cb7-28"><a href="#cb7-28" aria-hidden="true" tabindex="-1"></a>    <span class="co"># SES: convert ordered quintiles into a simple numeric scale 1–5</span></span>
+<span id="cb7-29"><a href="#cb7-29" aria-hidden="true" tabindex="-1"></a>    <span class="at">SES =</span> <span class="fu">factor</span>(</span>
+<span id="cb7-30"><a href="#cb7-30" aria-hidden="true" tabindex="-1"></a>      X1SESQ5,</span>
+<span id="cb7-31"><a href="#cb7-31" aria-hidden="true" tabindex="-1"></a>      <span class="at">levels =</span> <span class="fu">c</span>(</span>
+<span id="cb7-32"><a href="#cb7-32" aria-hidden="true" tabindex="-1"></a>        <span class="st">"First quintile (lowest)"</span>,</span>
+<span id="cb7-33"><a href="#cb7-33" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Second quintile"</span>,</span>
+<span id="cb7-34"><a href="#cb7-34" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Third quintile"</span>,</span>
+<span id="cb7-35"><a href="#cb7-35" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Fourth quintile"</span>,</span>
+<span id="cb7-36"><a href="#cb7-36" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Fifth quintile (highest)"</span></span>
+<span id="cb7-37"><a href="#cb7-37" aria-hidden="true" tabindex="-1"></a>      ),</span>
+<span id="cb7-38"><a href="#cb7-38" aria-hidden="true" tabindex="-1"></a>      <span class="at">labels =</span> <span class="fu">c</span>(<span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">3</span>, <span class="dv">4</span>, <span class="dv">5</span>)</span>
+<span id="cb7-39"><a href="#cb7-39" aria-hidden="true" tabindex="-1"></a>    ) <span class="sc">%&gt;%</span> <span class="fu">as.numeric</span>()</span>
+<span id="cb7-40"><a href="#cb7-40" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb7-41"><a href="#cb7-41" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-42"><a href="#cb7-42" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(analytic)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>    STU_ID           X1IEPFLAG            X1SCIEFF         X1SEX          
+ Length:23503       Length:23503       Min.   :-9.000   Length:23503      
+ Class :character   Class :character   1st Qu.:-7.000   Class :character  
+ Mode  :character   Mode  :character   Median :-0.360   Mode  :character  
+                                       Mean   :-1.967                     
+                                       3rd Qu.: 0.250                     
+                                       Max.   : 1.830                     
+                                                                          
+    X1RACE           X1DUALLANG          X1LOCALE           X1SESQ5         
+ Length:23503       Length:23503       Length:23503       Length:23503      
+ Class :character   Class :character   Class :character   Class :character  
+ Mode  :character   Mode  :character   Mode  :character   Mode  :character  
+                                                                            
+                                                                            
+                                                                            
+                                                                            
+  P1MARSTAT           P1HIDEG1           P1HIDEG2            P1SLD          
+ Length:23503       Length:23503       Length:23503       Length:23503      
+ Class :character   Class :character   Class :character   Class :character  
+ Mode  :character   Mode  :character   Mode  :character   Mode  :character  
+                                                                            
+                                                                            
+                                                                            
+                                                                            
+     P1DD                IEP            female         race_white   
+ Length:23503       Min.   :0.000   Min.   :0.0000   Min.   :0.000  
+ Class :character   1st Qu.:0.000   1st Qu.:0.0000   1st Qu.:0.000  
+ Mode  :character   Median :0.000   Median :0.0000   Median :1.000  
+                    Mean   :0.203   Mean   :0.4904   Mean   :0.537  
+                    3rd Qu.:0.000   3rd Qu.:1.0000   3rd Qu.:1.000  
+                    Max.   :1.000   Max.   :1.0000   Max.   :1.000  
+                    NA's   :13319   NA's   :6        NA's   :1006   
+   race_black       race_asian   race_hispanic    dual_lang    
+ Min.   :0.0000   Min.   :0      Min.   :0      Min.   :0.000  
+ 1st Qu.:0.0000   1st Qu.:0      1st Qu.:0      1st Qu.:1.000  
+ Median :0.0000   Median :0      Median :0      Median :1.000  
+ Mean   :0.1089   Mean   :0      Mean   :0      Mean   :0.834  
+ 3rd Qu.:0.0000   3rd Qu.:0      3rd Qu.:0      3rd Qu.:1.000  
+ Max.   :1.0000   Max.   :0      Max.   :0      Max.   :1.000  
+ NA's   :1006     NA's   :1006   NA's   :1006   NA's   :2084   
+  locale_rural       divorced      bachelorabove1   bachelorabove2  
+ Min.   :0.0000   Min.   :0.0000   Min.   :0.0000   Min.   :0.0000  
+ 1st Qu.:0.0000   1st Qu.:0.0000   1st Qu.:0.0000   1st Qu.:0.0000  
+ Median :0.0000   Median :0.0000   Median :0.0000   Median :0.0000  
+ Mean   :0.2365   Mean   :0.1127   Mean   :0.2318   Mean   :0.1625  
+ 3rd Qu.:0.0000   3rd Qu.:0.0000   3rd Qu.:0.0000   3rd Qu.:0.0000  
+ Max.   :1.0000   Max.   :1.0000   Max.   :1.0000   Max.   :1.0000  
+                                                                    
+       LD              DD             SES       
+ Min.   :0.000   Min.   :0.000   Min.   :1.000  
+ 1st Qu.:0.000   1st Qu.:0.000   1st Qu.:2.000  
+ Median :0.000   Median :0.000   Median :3.000  
+ Mean   :0.089   Mean   :0.043   Mean   :3.234  
+ 3rd Qu.:0.000   3rd Qu.:0.000   3rd Qu.:5.000  
+ Max.   :1.000   Max.   :1.000   Max.   :5.000  
+ NA's   :7961    NA's   :7985    NA's   :2059   </code></pre>
+</div>
+</div>
+</section>
+<section id="a1.6-complete-case-analytic-sample" class="level2">
+<h2 class="anchored" data-anchor-id="a1.6-complete-case-analytic-sample">A1.6 Complete-case analytic sample</h2>
+<p>For this appendix example we use complete cases.</p>
+<p>(If you later decide to use multiple imputation, it can slot in here without changing the rest of the workflow.)</p>
+<div class="cell">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb9"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>analytic_clean <span class="ot">&lt;-</span> analytic[<span class="fu">complete.cases</span>(analytic), ]</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>analytic_clean<span class="sc">$</span>IEP <span class="ot">&lt;-</span> <span class="fu">as.factor</span>(analytic_clean<span class="sc">$</span>IEP)</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="fu">dim</span>(analytic_clean)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] 5282   27</code></pre>
+</div>
+<details class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb11"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="fu">table</span>(analytic_clean<span class="sc">$</span>IEP)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+   0    1 
+4295  987 </code></pre>
+</div>
+</div>
+</section>
+<section id="a1.7-estimate-cbps-weights-ate" class="level2">
+<h2 class="anchored" data-anchor-id="a1.7-estimate-cbps-weights-ate">A1.7 Estimate CBPS weights (ATE)</h2>
+<p>We use <strong>CBPS</strong> to estimate weights that balance covariates by construction.</p>
+<p>Then we normalize the weights so the average weight is 1 (helps with interpretability and avoids tiny/huge totals).</p>
+<div class="cell">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb13"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>cbps_fit <span class="ot">&lt;-</span> <span class="fu">CBPS</span>(</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>  IEP <span class="sc">~</span> female <span class="sc">+</span> race_white <span class="sc">+</span> race_black <span class="sc">+</span></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>    dual_lang <span class="sc">+</span> locale_rural <span class="sc">+</span> SES <span class="sc">+</span> divorced <span class="sc">+</span></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>    bachelorabove1 <span class="sc">+</span> bachelorabove2 <span class="sc">+</span> LD <span class="sc">+</span> DD,</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">data =</span> analytic_clean,</span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">method =</span> <span class="st">"exact"</span>,</span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">ATT =</span> <span class="dv">0</span></span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>analytic_clean<span class="sc">$</span>IPTW <span class="ot">&lt;-</span> cbps_fit<span class="sc">$</span>weights</span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(analytic_clean<span class="sc">$</span>IPTW)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>     Min.   1st Qu.    Median      Mean   3rd Qu.      Max. 
+0.0001961 0.0002028 0.0002079 0.0003786 0.0002191 0.0052690 </code></pre>
+</div>
+<details class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb15"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Normalize weights: mean(weight) = 1</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>analytic_clean<span class="sc">$</span>finalWeightATE <span class="ot">&lt;-</span> <span class="fu">with</span>(analytic_clean, IPTW <span class="sc">/</span> <span class="fu">mean</span>(IPTW))</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a><span class="fu">with</span>(analytic_clean, <span class="fu">by</span>(finalWeightATE, IEP, summary))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>IEP: 0
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+ 0.5189  0.5338  0.5450  0.6149  0.5633  8.8724 
+------------------------------------------------------------ 
+IEP: 1
+   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+ 0.5180  0.6038  0.7471  2.6758  4.2748 13.9155 </code></pre>
+</div>
+</div>
+</section>
+<section id="a1.8-covariate-balance-before-vs-after-weighting" class="level2">
+<h2 class="anchored" data-anchor-id="a1.8-covariate-balance-before-vs-after-weighting">A1.8 Covariate balance (before vs after weighting)</h2>
+<p>This is the gut-check step: if weighting doesn’t improve balance, we don’t trust the ATE estimate.</p>
+<div class="cell">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb17"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a>covnames <span class="ot">&lt;-</span> <span class="fu">c</span>(</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>  <span class="st">"female"</span>, <span class="st">"race_white"</span>, <span class="st">"race_black"</span>,</span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>  <span class="st">"dual_lang"</span>, <span class="st">"locale_rural"</span>, <span class="st">"SES"</span>, <span class="st">"divorced"</span>,</span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>  <span class="st">"bachelorabove1"</span>, <span class="st">"bachelorabove2"</span>,</span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>  <span class="st">"LD"</span>, <span class="st">"DD"</span></span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a>balance_before <span class="ot">&lt;-</span> <span class="fu">bal.stat</span>(</span>
+<span id="cb17-9"><a href="#cb17-9" aria-hidden="true" tabindex="-1"></a>  <span class="at">data =</span> analytic_clean,</span>
+<span id="cb17-10"><a href="#cb17-10" aria-hidden="true" tabindex="-1"></a>  <span class="at">vars =</span> covnames,</span>
+<span id="cb17-11"><a href="#cb17-11" aria-hidden="true" tabindex="-1"></a>  <span class="at">treat.var =</span> <span class="st">"IEP"</span>,</span>
+<span id="cb17-12"><a href="#cb17-12" aria-hidden="true" tabindex="-1"></a>  <span class="at">w.all =</span> <span class="dv">1</span>,</span>
+<span id="cb17-13"><a href="#cb17-13" aria-hidden="true" tabindex="-1"></a>  <span class="at">get.ks =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb17-14"><a href="#cb17-14" aria-hidden="true" tabindex="-1"></a>  <span class="at">sampw =</span> <span class="dv">1</span>,</span>
+<span id="cb17-15"><a href="#cb17-15" aria-hidden="true" tabindex="-1"></a>  <span class="at">estimand =</span> <span class="st">"ATE"</span>,</span>
+<span id="cb17-16"><a href="#cb17-16" aria-hidden="true" tabindex="-1"></a>  <span class="at">multinom =</span> <span class="cn">FALSE</span></span>
+<span id="cb17-17"><a href="#cb17-17" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb17-18"><a href="#cb17-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-19"><a href="#cb17-19" aria-hidden="true" tabindex="-1"></a>balance_after <span class="ot">&lt;-</span> <span class="fu">bal.stat</span>(</span>
+<span id="cb17-20"><a href="#cb17-20" aria-hidden="true" tabindex="-1"></a>  <span class="at">data =</span> analytic_clean,</span>
+<span id="cb17-21"><a href="#cb17-21" aria-hidden="true" tabindex="-1"></a>  <span class="at">vars =</span> covnames,</span>
+<span id="cb17-22"><a href="#cb17-22" aria-hidden="true" tabindex="-1"></a>  <span class="at">treat.var =</span> <span class="st">"IEP"</span>,</span>
+<span id="cb17-23"><a href="#cb17-23" aria-hidden="true" tabindex="-1"></a>  <span class="at">w.all =</span> analytic_clean[, <span class="st">"finalWeightATE"</span>],</span>
+<span id="cb17-24"><a href="#cb17-24" aria-hidden="true" tabindex="-1"></a>  <span class="at">get.ks =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb17-25"><a href="#cb17-25" aria-hidden="true" tabindex="-1"></a>  <span class="at">sampw =</span> <span class="dv">1</span>,</span>
+<span id="cb17-26"><a href="#cb17-26" aria-hidden="true" tabindex="-1"></a>  <span class="at">estimand =</span> <span class="st">"ATE"</span>,</span>
+<span id="cb17-27"><a href="#cb17-27" aria-hidden="true" tabindex="-1"></a>  <span class="at">multinom =</span> <span class="cn">FALSE</span></span>
+<span id="cb17-28"><a href="#cb17-28" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb17-29"><a href="#cb17-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb17-30"><a href="#cb17-30" aria-hidden="true" tabindex="-1"></a>balance_before</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>$results
+                    tx.mn     tx.sd      ct.mn     ct.sd  std.eff.sz       stat
+female         0.36068896 0.4804439 0.51711292 0.4997652 -0.31291021  -9.156782
+race_white     0.60486322 0.4891279 0.62281723 0.4847377 -0.03697550  -1.041967
+race_black     0.08206687 0.2746057 0.05308498 0.2242291  0.12347967   3.088701
+dual_lang      0.85916920 0.3480233 0.83073341 0.3750309  0.07679785   2.281370
+locale_rural   0.28470111 0.4515008 0.23119907 0.4216485  0.12504868   3.399029
+SES            3.01621074 1.4291023 3.61746217 1.3636175 -0.43076567 -12.023961
+divorced       0.06180344 0.2409203 0.03329453 0.1794255  0.14793692   3.502475
+bachelorabove1 0.23505572 0.4242486 0.39324796 0.4885280 -0.32880962 -10.259002
+bachelorabove2 0.20466059 0.4036579 0.32107101 0.4669424 -0.25416964  -7.926003
+LD             0.56534954 0.4959624 0.03073341 0.1726146  1.58625812  33.416761
+DD             0.26139818 0.4396191 0.01513388 0.1220996  1.02768596  17.451948
+                           p
+female          7.491159e-20
+race_white      2.974746e-01
+race_black      2.020783e-03
+dual_lang       2.256618e-02
+locale_rural    6.812635e-04
+SES             7.123731e-33
+divorced        4.647736e-04
+bachelorabove1  1.827022e-24
+bachelorabove2  2.740141e-15
+LD             2.835197e-222
+DD              2.351720e-66</code></pre>
+</div>
+<details class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb19"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a>balance_after</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>$results
+                    tx.mn     tx.sd      ct.mn     ct.sd    std.eff.sz
+female         0.48415820 0.5000023 0.48414806 0.4998068  2.028209e-05
+race_white     0.61592562 0.4866222 0.61598717 0.4864176 -1.267697e-04
+race_black     0.05513980 0.2283686 0.05523916 0.2284731 -4.233354e-04
+dual_lang      0.83013900 0.3757010 0.83019188 0.3755079 -1.428121e-04
+locale_rural   0.24241162 0.4287592 0.24237691 0.4285710  8.112745e-05
+SES            3.52130175 1.4180584 3.52108323 1.4002359  1.565544e-04
+divorced       0.03879157 0.1931958 0.03882573 0.1932019 -1.772625e-04
+bachelorabove1 0.36974140 0.4829793 0.36973232 0.4827884  1.887580e-05
+bachelorabove2 0.30347531 0.4599918 0.30344503 0.4597993  6.612490e-05
+LD             0.13326353 0.3400316 0.13343624 0.3400852 -5.124483e-04
+DD             0.06976719 0.2548834 0.06994637 0.2550863 -7.477575e-04
+                        stat         p
+female          0.0003972150 0.9996831
+race_white     -0.0024741506 0.9980260
+race_black     -0.0100676692 0.9919677
+dual_lang      -0.0026019128 0.9979241
+locale_rural    0.0016941879 0.9986483
+SES             0.0031079136 0.9975204
+divorced       -0.0040561747 0.9967638
+bachelorabove1  0.0003488282 0.9997217
+bachelorabove2  0.0012293789 0.9990191
+LD             -0.0118690531 0.9905305
+DD             -0.0144615278 0.9884623</code></pre>
+</div>
+</div>
+</section>
+<section id="a1.9-weighted-outcome-model-survey-regression" class="level2">
+<h2 class="anchored" data-anchor-id="a1.9-weighted-outcome-model-survey-regression">A1.9 Weighted outcome model (survey regression)</h2>
+<p>We fit a simple weighted regression of <code>X1SCIEFF</code> on <code>IEP</code>.</p>
+<p>The design object uses the CBPS weights.</p>
+<div class="cell">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb21"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a>design_IPTW <span class="ot">&lt;-</span> <span class="fu">svydesign</span>(</span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">id =</span> <span class="sc">~</span><span class="dv">1</span>,</span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">weights =</span> <span class="sc">~</span>finalWeightATE,</span>
+<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">data =</span> analytic_clean</span>
+<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a>model_IPTW <span class="ot">&lt;-</span> <span class="fu">svyglm</span>(X1SCIEFF <span class="sc">~</span> IEP, <span class="at">design =</span> design_IPTW)</span>
+<span id="cb21-8"><a href="#cb21-8" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(model_IPTW)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>
+Call:
+svyglm(formula = X1SCIEFF ~ IEP, design = design_IPTW)
+
+Survey design:
+svydesign(id = ~1, weights = ~finalWeightATE, data = analytic_clean)
+
+Coefficients:
+            Estimate Std. Error t value Pr(&gt;|t|)    
+(Intercept) -0.96440    0.06085 -15.850  &lt; 2e-16 ***
+IEP1        -0.63613    0.16460  -3.865 0.000113 ***
+---
+Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+
+(Dispersion parameter for gaussian family taken to be 9.325344)
+
+Number of Fisher Scoring iterations: 2</code></pre>
+</div>
+</div>
+</section>
+<section id="a1.10-sensitivity-analysis-konfound" class="level2">
+<h2 class="anchored" data-anchor-id="a1.10-sensitivity-analysis-konfound">A1.10 Sensitivity analysis (Konfound)</h2>
+<p>Here we run <code>konfound</code> using the reported estimate and standard error.</p>
+<p>In practice, you’ll usually pull the estimate/SE directly from the fitted model output, but the hard-coded values are fine for a fixed appendix example.</p>
+<div class="cell">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb23"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="co"># RIR index</span></span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a><span class="fu">pkonfound</span>(</span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">est_eff =</span> <span class="sc">-</span><span class="fl">0.63613</span>,</span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">std_err =</span> <span class="fl">0.16460</span>,</span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">n_obs =</span> <span class="dv">5282</span>,</span>
+<span id="cb23-6"><a href="#cb23-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">n_covariates =</span> <span class="dv">1</span>,</span>
+<span id="cb23-7"><a href="#cb23-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">index =</span> <span class="st">"RIR"</span></span>
+<span id="cb23-8"><a href="#cb23-8" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>Robustness of Inference to Replacement (RIR):
+RIR = 2603
+
+To nullify the inference of an effect using the threshold of -0.323 for
+statistical significance (with null hypothesis = 0 and alpha = 0.05), 49.274%
+of the estimate of -0.636 would have to be due to bias. This implies that to
+nullify the inference one would expect to have to replace 2603 (49.274%)
+observations with data points for which the effect is 0 (RIR = 2603).
+
+See Frank et al. (2013) for a description of the method.
+
+Citation: Frank, K.A., Maroulis, S., Duong, M., and Kelcey, B. (2013).
+What would it take to change an inference?
+Using Rubin's causal model to interpret the robustness of causal inferences.
+Education, Evaluation and Policy Analysis, 35 437-460.
+
+Accuracy of results increases with the number of decimals reported.</code></pre>
+</div>
+<details class="code-fold">
+<summary>Code</summary>
+<div class="sourceCode cell-code" id="cb25"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="co"># IT index</span></span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a><span class="fu">pkonfound</span>(</span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">est_eff =</span> <span class="sc">-</span><span class="fl">0.63613</span>,</span>
+<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">std_err =</span> <span class="fl">0.16460</span>,</span>
+<span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">n_obs =</span> <span class="dv">5282</span>,</span>
+<span id="cb25-6"><a href="#cb25-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">n_covariates =</span> <span class="dv">1</span>,</span>
+<span id="cb25-7"><a href="#cb25-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">index =</span> <span class="st">"IT"</span></span>
+<span id="cb25-8"><a href="#cb25-8" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</details>
+<div class="cell-output cell-output-stdout">
+<pre><code>Impact Threshold for a Confounding Variable (ITCV):
+The minimum (in absolute value) impact of an omitted variable to nullify an inference
+for a null hypothesis of an effect of 0 (nu) is based on a correlation of -0.164 with the
+outcome and 0.164 with the predictor of interest (conditioning on all observed covariates
+in the model; signs are interchangeable if they are different). This is based on a threshold
+effect of -0.027 for statistical significance (alpha = 0.05).
+
+Correspondingly the conditional impact of an omitted variable (as defined in Frank 2000) must be
+-0.164 X 0.164 = -0.027 to nullify an inference for a null hypothesis of an effect of 0 (nu).
+
+For calculation of unconditional ITCV using pkonfound(), additionally include
+the R2, sdx, and sdy as input.
+
+See Frank (2000) for a description of the method.
+
+Citation:
+Frank, K. (2000). Impact of a confounding variable on the inference of a
+regression coefficient. Sociological Methods and Research, 29 (2), 147-194
+
+Accuracy of results increases with the number of decimals reported.
+
+The ITCV analysis was originally derived for OLS standard errors. If the
+standard errors reported in the table were not based on OLS, some caution
+should be used to interpret the ITCV.</code></pre>
+</div>
+</div>
+<!-- -->
+
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+        const codeEl = trigger.previousElementSibling.cloneNode(true);
+        for (const childEl of codeEl.children) {
+          if (isCodeAnnotation(childEl)) {
+            childEl.remove();
+          }
+        }
+        return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+    const viewSource = window.document.getElementById('quarto-view-source') ||
+                       window.document.getElementById('quarto-code-tools-source');
+    if (viewSource) {
+      const sourceUrl = viewSource.getAttribute("data-quarto-source-url");
+      viewSource.addEventListener("click", function(e) {
+        if (sourceUrl) {
+          // rstudio viewer pane
+          if (/\bcapabilities=\b/.test(window.location)) {
+            window.open(sourceUrl);
+          } else {
+            window.location.href = sourceUrl;
+          }
+        } else {
+          const modal = new bootstrap.Modal(document.getElementById('quarto-embedded-source-code-modal'));
+          modal.show();
+        }
+        return false;
+      });
+    }
+    function toggleCodeHandler(show) {
+      return function(e) {
+        const detailsSrc = window.document.querySelectorAll(".cell > details > .sourceCode");
+        for (let i=0; i<detailsSrc.length; i++) {
+          const details = detailsSrc[i].parentElement;
+          if (show) {
+            details.open = true;
+          } else {
+            details.removeAttribute("open");
+          }
+        }
+        const cellCodeDivs = window.document.querySelectorAll(".cell > .sourceCode");
+        const fromCls = show ? "hidden" : "unhidden";
+        const toCls = show ? "unhidden" : "hidden";
+        for (let i=0; i<cellCodeDivs.length; i++) {
+          const codeDiv = cellCodeDivs[i];
+          if (codeDiv.classList.contains(fromCls)) {
+            codeDiv.classList.remove(fromCls);
+            codeDiv.classList.add(toCls);
+          } 
+        }
+        return false;
+      }
+    }
+    const hideAllCode = window.document.getElementById("quarto-hide-all-code");
+    if (hideAllCode) {
+      hideAllCode.addEventListener("click", toggleCodeHandler(false));
+    }
+    const showAllCode = window.document.getElementById("quarto-show-all-code");
+    if (showAllCode) {
+      showAllCode.addEventListener("click", toggleCodeHandler(true));
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp('/' + window.location.host + '/');
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script><div class="modal fade" id="quarto-embedded-source-code-modal" tabindex="-1" aria-labelledby="quarto-embedded-source-code-modal-label" aria-hidden="true"><div class="modal-dialog modal-dialog-scrollable"><div class="modal-content"><div class="modal-header"><h5 class="modal-title" id="quarto-embedded-source-code-modal-label">Source Code</h5><button class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div class="">
+<div class="sourceCode" id="cb27" data-shortcodes="false"><pre class="sourceCode markdown code-with-copy"><code class="sourceCode markdown"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a><span class="an">title:</span><span class="co"> "Appendix A1. Propensity Score Weighting (CBPS-IPTW)"</span></span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a><span class="an">format:</span></span>
+<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a><span class="co">  html:</span></span>
+<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a><span class="co">    toc: true</span></span>
+<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a><span class="co">    toc-depth: 3</span></span>
+<span id="cb27-7"><a href="#cb27-7" aria-hidden="true" tabindex="-1"></a><span class="co">    code-fold: true</span></span>
+<span id="cb27-8"><a href="#cb27-8" aria-hidden="true" tabindex="-1"></a><span class="co">    code-tools: true</span></span>
+<span id="cb27-9"><a href="#cb27-9" aria-hidden="true" tabindex="-1"></a><span class="co">    number-sections: false</span></span>
+<span id="cb27-10"><a href="#cb27-10" aria-hidden="true" tabindex="-1"></a><span class="an">execute:</span></span>
+<span id="cb27-11"><a href="#cb27-11" aria-hidden="true" tabindex="-1"></a><span class="co">  warning: false</span></span>
+<span id="cb27-12"><a href="#cb27-12" aria-hidden="true" tabindex="-1"></a><span class="co">  message: false</span></span>
+<span id="cb27-13"><a href="#cb27-13" aria-hidden="true" tabindex="-1"></a><span class="co">  cache: true</span></span>
+<span id="cb27-14"><a href="#cb27-14" aria-hidden="true" tabindex="-1"></a><span class="co">  freeze: auto</span></span>
+<span id="cb27-15"><a href="#cb27-15" aria-hidden="true" tabindex="-1"></a><span class="co">---</span></span>
+<span id="cb27-16"><a href="#cb27-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-17"><a href="#cb27-17" aria-hidden="true" tabindex="-1"></a><span class="fu">## Overview</span></span>
+<span id="cb27-18"><a href="#cb27-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-19"><a href="#cb27-19" aria-hidden="true" tabindex="-1"></a>This appendix example estimates the average treatment effect (ATE) of having an IEP on science self-efficacy (<span class="in">`X1SCIEFF`</span>). We (1) build an analytic dataset, (2) estimate propensity score weights using CBPS, (3) check covariate balance, (4) fit a weighted outcome model, and (5) run a sensitivity analysis with <span class="co">[</span><span class="ot">konfound</span><span class="co">](https://cran.r-project.org/web/packages/konfound/index.html)</span>.</span>
+<span id="cb27-20"><a href="#cb27-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-21"><a href="#cb27-21" aria-hidden="true" tabindex="-1"></a><span class="fu">## A1.1 Setup</span></span>
+<span id="cb27-22"><a href="#cb27-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-25"><a href="#cb27-25" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
+<span id="cb27-26"><a href="#cb27-26" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: a1-setup</span></span>
+<span id="cb27-27"><a href="#cb27-27" aria-hidden="true" tabindex="-1"></a><span class="co">#| include: true</span></span>
+<span id="cb27-28"><a href="#cb27-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-29"><a href="#cb27-29" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">12345</span>)</span>
+<span id="cb27-30"><a href="#cb27-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-31"><a href="#cb27-31" aria-hidden="true" tabindex="-1"></a><span class="co"># Packages used in this example</span></span>
+<span id="cb27-32"><a href="#cb27-32" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(dplyr)</span>
+<span id="cb27-33"><a href="#cb27-33" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(CBPS)</span>
+<span id="cb27-34"><a href="#cb27-34" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(twang)</span>
+<span id="cb27-35"><a href="#cb27-35" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(survey)</span>
+<span id="cb27-36"><a href="#cb27-36" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(konfound)</span>
+<span id="cb27-37"><a href="#cb27-37" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb27-38"><a href="#cb27-38" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-39"><a href="#cb27-39" aria-hidden="true" tabindex="-1"></a><span class="fu">## A1.2 Load data</span></span>
+<span id="cb27-40"><a href="#cb27-40" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-43"><a href="#cb27-43" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
+<span id="cb27-44"><a href="#cb27-44" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: a1-load-data</span></span>
+<span id="cb27-45"><a href="#cb27-45" aria-hidden="true" tabindex="-1"></a><span class="co">#| include: true</span></span>
+<span id="cb27-46"><a href="#cb27-46" aria-hidden="true" tabindex="-1"></a><span class="fu">load</span>(<span class="st">"hsls_17_student_pets_sr_v1_0.RData"</span>)</span>
+<span id="cb27-47"><a href="#cb27-47" aria-hidden="true" tabindex="-1"></a>hsls <span class="ot">&lt;-</span> hsls_17_student_pets_sr_v1_0</span>
+<span id="cb27-48"><a href="#cb27-48" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-49"><a href="#cb27-49" aria-hidden="true" tabindex="-1"></a><span class="co"># Quick sanity check</span></span>
+<span id="cb27-50"><a href="#cb27-50" aria-hidden="true" tabindex="-1"></a><span class="co">#dim(hsls)</span></span>
+<span id="cb27-51"><a href="#cb27-51" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb27-52"><a href="#cb27-52" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-53"><a href="#cb27-53" aria-hidden="true" tabindex="-1"></a><span class="fu">## A1.3 Keep variables used in the example</span></span>
+<span id="cb27-54"><a href="#cb27-54" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-57"><a href="#cb27-57" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
+<span id="cb27-58"><a href="#cb27-58" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: a1-select-vars</span></span>
+<span id="cb27-59"><a href="#cb27-59" aria-hidden="true" tabindex="-1"></a><span class="co">#| include: true</span></span>
+<span id="cb27-60"><a href="#cb27-60" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-61"><a href="#cb27-61" aria-hidden="true" tabindex="-1"></a>vars_needed <span class="ot">&lt;-</span> dplyr<span class="sc">::</span><span class="fu">select</span>(hsls,</span>
+<span id="cb27-62"><a href="#cb27-62" aria-hidden="true" tabindex="-1"></a>    STU_ID,        <span class="co"># student ID</span></span>
+<span id="cb27-63"><a href="#cb27-63" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-64"><a href="#cb27-64" aria-hidden="true" tabindex="-1"></a>    <span class="co"># treatment</span></span>
+<span id="cb27-65"><a href="#cb27-65" aria-hidden="true" tabindex="-1"></a>    X1IEPFLAG,     <span class="co"># IEP status</span></span>
+<span id="cb27-66"><a href="#cb27-66" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-67"><a href="#cb27-67" aria-hidden="true" tabindex="-1"></a>    <span class="co"># outcome</span></span>
+<span id="cb27-68"><a href="#cb27-68" aria-hidden="true" tabindex="-1"></a>    X1SCIEFF,      <span class="co"># science self-efficacy</span></span>
+<span id="cb27-69"><a href="#cb27-69" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-70"><a href="#cb27-70" aria-hidden="true" tabindex="-1"></a>    <span class="co"># covariates</span></span>
+<span id="cb27-71"><a href="#cb27-71" aria-hidden="true" tabindex="-1"></a>    X1SEX,         <span class="co"># gender</span></span>
+<span id="cb27-72"><a href="#cb27-72" aria-hidden="true" tabindex="-1"></a>    X1RACE,        <span class="co"># race</span></span>
+<span id="cb27-73"><a href="#cb27-73" aria-hidden="true" tabindex="-1"></a>    X1DUALLANG,    <span class="co"># language background</span></span>
+<span id="cb27-74"><a href="#cb27-74" aria-hidden="true" tabindex="-1"></a>    X1LOCALE,      <span class="co"># locale</span></span>
+<span id="cb27-75"><a href="#cb27-75" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-76"><a href="#cb27-76" aria-hidden="true" tabindex="-1"></a>    X1SESQ5,       <span class="co"># SES quintile</span></span>
+<span id="cb27-77"><a href="#cb27-77" aria-hidden="true" tabindex="-1"></a>    P1MARSTAT,     <span class="co"># parents' marital status</span></span>
+<span id="cb27-78"><a href="#cb27-78" aria-hidden="true" tabindex="-1"></a>    P1HIDEG1,      <span class="co"># parent 1 highest degree</span></span>
+<span id="cb27-79"><a href="#cb27-79" aria-hidden="true" tabindex="-1"></a>    P1HIDEG2,      <span class="co"># parent 2 highest degree</span></span>
+<span id="cb27-80"><a href="#cb27-80" aria-hidden="true" tabindex="-1"></a>    P1SLD,         <span class="co"># parent report: learning disability</span></span>
+<span id="cb27-81"><a href="#cb27-81" aria-hidden="true" tabindex="-1"></a>    P1DD           <span class="co"># parent report: developmental delay</span></span>
+<span id="cb27-82"><a href="#cb27-82" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb27-83"><a href="#cb27-83" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-84"><a href="#cb27-84" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(vars_needed)</span>
+<span id="cb27-85"><a href="#cb27-85" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb27-86"><a href="#cb27-86" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-87"><a href="#cb27-87" aria-hidden="true" tabindex="-1"></a><span class="fu">## A1.4 Recode missing categories as NA</span></span>
+<span id="cb27-88"><a href="#cb27-88" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-89"><a href="#cb27-89" aria-hidden="true" tabindex="-1"></a>Some HSLS variables code missingness as labeled categories.</span>
+<span id="cb27-90"><a href="#cb27-90" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-91"><a href="#cb27-91" aria-hidden="true" tabindex="-1"></a>Here we convert those labels to <span class="in">`NA`</span> so that downstream modeling behaves as expected.</span>
+<span id="cb27-92"><a href="#cb27-92" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-95"><a href="#cb27-95" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
+<span id="cb27-96"><a href="#cb27-96" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: a1-handle-missing-labels</span></span>
+<span id="cb27-97"><a href="#cb27-97" aria-hidden="true" tabindex="-1"></a><span class="co">#| include: true</span></span>
+<span id="cb27-98"><a href="#cb27-98" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-99"><a href="#cb27-99" aria-hidden="true" tabindex="-1"></a>missing_levels <span class="ot">&lt;-</span> <span class="fu">c</span>(</span>
+<span id="cb27-100"><a href="#cb27-100" aria-hidden="true" tabindex="-1"></a>  <span class="st">"Item legitimate skip/NA"</span>,</span>
+<span id="cb27-101"><a href="#cb27-101" aria-hidden="true" tabindex="-1"></a>  <span class="st">"Unit non-response"</span>,</span>
+<span id="cb27-102"><a href="#cb27-102" aria-hidden="true" tabindex="-1"></a>  <span class="st">"Missing"</span></span>
+<span id="cb27-103"><a href="#cb27-103" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb27-104"><a href="#cb27-104" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-105"><a href="#cb27-105" aria-hidden="true" tabindex="-1"></a>vars_clean <span class="ot">&lt;-</span> vars_needed <span class="sc">%&gt;%</span></span>
+<span id="cb27-106"><a href="#cb27-106" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="fu">across</span>(</span>
+<span id="cb27-107"><a href="#cb27-107" aria-hidden="true" tabindex="-1"></a>    <span class="at">.cols =</span> <span class="fu">c</span>(X1IEPFLAG, X1SEX, X1RACE, X1DUALLANG, X1LOCALE,</span>
+<span id="cb27-108"><a href="#cb27-108" aria-hidden="true" tabindex="-1"></a>              X1SESQ5, P1MARSTAT, P1HIDEG1, P1HIDEG2, P1SLD, P1DD),</span>
+<span id="cb27-109"><a href="#cb27-109" aria-hidden="true" tabindex="-1"></a>    <span class="at">.fns =</span> <span class="sc">~</span> <span class="fu">ifelse</span>(<span class="fu">as.character</span>(.x) <span class="sc">%in%</span> missing_levels, <span class="cn">NA</span>, <span class="fu">as.character</span>(.x))</span>
+<span id="cb27-110"><a href="#cb27-110" aria-hidden="true" tabindex="-1"></a>  ))</span>
+<span id="cb27-111"><a href="#cb27-111" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-112"><a href="#cb27-112" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(vars_clean)</span>
+<span id="cb27-113"><a href="#cb27-113" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb27-114"><a href="#cb27-114" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-115"><a href="#cb27-115" aria-hidden="true" tabindex="-1"></a><span class="fu">## A1.5 Construct analysis variables (treatment + covariates)</span></span>
+<span id="cb27-116"><a href="#cb27-116" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-117"><a href="#cb27-117" aria-hidden="true" tabindex="-1"></a>The goal here is not to be clever—just to turn a handful of key survey fields into clean indicators that are easy to use in the weighting model.</span>
+<span id="cb27-118"><a href="#cb27-118" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-121"><a href="#cb27-121" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
+<span id="cb27-122"><a href="#cb27-122" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: a1-construct-variables</span></span>
+<span id="cb27-123"><a href="#cb27-123" aria-hidden="true" tabindex="-1"></a><span class="co">#| include: true</span></span>
+<span id="cb27-124"><a href="#cb27-124" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-125"><a href="#cb27-125" aria-hidden="true" tabindex="-1"></a>analytic <span class="ot">&lt;-</span> vars_clean <span class="sc">%&gt;%</span></span>
+<span id="cb27-126"><a href="#cb27-126" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
+<span id="cb27-127"><a href="#cb27-127" aria-hidden="true" tabindex="-1"></a>    <span class="co"># treatment: IEP</span></span>
+<span id="cb27-128"><a href="#cb27-128" aria-hidden="true" tabindex="-1"></a>    <span class="at">IEP =</span> <span class="fu">if_else</span>(X1IEPFLAG <span class="sc">==</span> <span class="st">"Student has an IEP"</span>, <span class="dv">1</span>, <span class="dv">0</span>, <span class="at">missing =</span> <span class="cn">NA</span>),</span>
+<span id="cb27-129"><a href="#cb27-129" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-130"><a href="#cb27-130" aria-hidden="true" tabindex="-1"></a>    <span class="co"># demographics</span></span>
+<span id="cb27-131"><a href="#cb27-131" aria-hidden="true" tabindex="-1"></a>    <span class="at">female =</span> <span class="fu">if_else</span>(X1SEX <span class="sc">==</span> <span class="st">"Female"</span>, <span class="dv">1</span>, <span class="dv">0</span>, <span class="at">missing =</span> <span class="cn">NA</span>),</span>
+<span id="cb27-132"><a href="#cb27-132" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-133"><a href="#cb27-133" aria-hidden="true" tabindex="-1"></a>    <span class="at">race_white =</span> <span class="fu">if_else</span>(X1RACE <span class="sc">==</span> <span class="st">"White, non-Hispanic"</span>, <span class="dv">1</span>, <span class="dv">0</span>, <span class="at">missing =</span> <span class="cn">NA</span>),</span>
+<span id="cb27-134"><a href="#cb27-134" aria-hidden="true" tabindex="-1"></a>    <span class="at">race_black =</span> <span class="fu">if_else</span>(X1RACE <span class="sc">==</span> <span class="st">"Black/African-American, non-Hispanic"</span>, <span class="dv">1</span>, <span class="dv">0</span>, <span class="at">missing =</span> <span class="cn">NA</span>),</span>
+<span id="cb27-135"><a href="#cb27-135" aria-hidden="true" tabindex="-1"></a>    <span class="at">race_asian =</span> <span class="fu">if_else</span>(X1RACE <span class="sc">==</span> <span class="st">" Asian, non-Hispanic "</span>, <span class="dv">1</span>, <span class="dv">0</span>, <span class="at">missing =</span> <span class="cn">NA</span>),</span>
+<span id="cb27-136"><a href="#cb27-136" aria-hidden="true" tabindex="-1"></a>    <span class="at">race_hispanic =</span> <span class="fu">if_else</span>(X1RACE <span class="sc">==</span> <span class="st">" Hispanic, race specified "</span>, <span class="dv">1</span>, <span class="dv">0</span>, <span class="at">missing =</span> <span class="cn">NA</span>),</span>
+<span id="cb27-137"><a href="#cb27-137" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-138"><a href="#cb27-138" aria-hidden="true" tabindex="-1"></a>    <span class="co"># language / locale</span></span>
+<span id="cb27-139"><a href="#cb27-139" aria-hidden="true" tabindex="-1"></a>    <span class="at">dual_lang =</span> <span class="fu">if_else</span>(X1DUALLANG <span class="sc">==</span> <span class="st">"First language is English only"</span>, <span class="dv">1</span>, <span class="dv">0</span>, <span class="at">missing =</span> <span class="cn">NA</span>),</span>
+<span id="cb27-140"><a href="#cb27-140" aria-hidden="true" tabindex="-1"></a>    <span class="at">locale_rural =</span> <span class="fu">if_else</span>(X1LOCALE <span class="sc">==</span> <span class="st">"Rural"</span>, <span class="dv">1</span>, <span class="dv">0</span>, <span class="at">missing =</span> <span class="cn">NA</span>),</span>
+<span id="cb27-141"><a href="#cb27-141" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-142"><a href="#cb27-142" aria-hidden="true" tabindex="-1"></a>    <span class="co"># family background</span></span>
+<span id="cb27-143"><a href="#cb27-143" aria-hidden="true" tabindex="-1"></a>    <span class="at">divorced =</span> <span class="fu">if_else</span>(P1MARSTAT <span class="sc">%in%</span> <span class="fu">c</span>(<span class="st">"Divorced"</span>, <span class="st">"Separated"</span>), <span class="dv">1</span>, <span class="dv">0</span>, <span class="at">missing =</span> <span class="cn">NA</span>),</span>
+<span id="cb27-144"><a href="#cb27-144" aria-hidden="true" tabindex="-1"></a>    <span class="at">bachelorabove1 =</span> <span class="fu">if_else</span>(P1HIDEG1 <span class="sc">%in%</span> <span class="fu">c</span>(<span class="st">"Bachelor's degree"</span>, <span class="st">"Master's degree"</span>), <span class="dv">1</span>, <span class="dv">0</span>, <span class="at">missing =</span> <span class="cn">NA</span>),</span>
+<span id="cb27-145"><a href="#cb27-145" aria-hidden="true" tabindex="-1"></a>    <span class="at">bachelorabove2 =</span> <span class="fu">if_else</span>(P1HIDEG2 <span class="sc">%in%</span> <span class="fu">c</span>(<span class="st">"Bachelor's degree"</span>, <span class="st">"Master's degree"</span>), <span class="dv">1</span>, <span class="dv">0</span>, <span class="at">missing =</span> <span class="cn">NA</span>),</span>
+<span id="cb27-146"><a href="#cb27-146" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-147"><a href="#cb27-147" aria-hidden="true" tabindex="-1"></a>    <span class="co"># parent-reported conditions</span></span>
+<span id="cb27-148"><a href="#cb27-148" aria-hidden="true" tabindex="-1"></a>    <span class="at">LD =</span> <span class="fu">if_else</span>(P1SLD <span class="sc">==</span> <span class="st">"Yes"</span>, <span class="dv">1</span>, <span class="dv">0</span>, <span class="at">missing =</span> <span class="cn">NA</span>),</span>
+<span id="cb27-149"><a href="#cb27-149" aria-hidden="true" tabindex="-1"></a>    <span class="at">DD =</span> <span class="fu">if_else</span>(P1DD <span class="sc">==</span> <span class="st">"Yes"</span>, <span class="dv">1</span>, <span class="dv">0</span>, <span class="at">missing =</span> <span class="cn">NA</span>)</span>
+<span id="cb27-150"><a href="#cb27-150" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">%&gt;%</span></span>
+<span id="cb27-151"><a href="#cb27-151" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
+<span id="cb27-152"><a href="#cb27-152" aria-hidden="true" tabindex="-1"></a>    <span class="co"># SES: convert ordered quintiles into a simple numeric scale 1–5</span></span>
+<span id="cb27-153"><a href="#cb27-153" aria-hidden="true" tabindex="-1"></a>    <span class="at">SES =</span> <span class="fu">factor</span>(</span>
+<span id="cb27-154"><a href="#cb27-154" aria-hidden="true" tabindex="-1"></a>      X1SESQ5,</span>
+<span id="cb27-155"><a href="#cb27-155" aria-hidden="true" tabindex="-1"></a>      <span class="at">levels =</span> <span class="fu">c</span>(</span>
+<span id="cb27-156"><a href="#cb27-156" aria-hidden="true" tabindex="-1"></a>        <span class="st">"First quintile (lowest)"</span>,</span>
+<span id="cb27-157"><a href="#cb27-157" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Second quintile"</span>,</span>
+<span id="cb27-158"><a href="#cb27-158" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Third quintile"</span>,</span>
+<span id="cb27-159"><a href="#cb27-159" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Fourth quintile"</span>,</span>
+<span id="cb27-160"><a href="#cb27-160" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Fifth quintile (highest)"</span></span>
+<span id="cb27-161"><a href="#cb27-161" aria-hidden="true" tabindex="-1"></a>      ),</span>
+<span id="cb27-162"><a href="#cb27-162" aria-hidden="true" tabindex="-1"></a>      <span class="at">labels =</span> <span class="fu">c</span>(<span class="dv">1</span>, <span class="dv">2</span>, <span class="dv">3</span>, <span class="dv">4</span>, <span class="dv">5</span>)</span>
+<span id="cb27-163"><a href="#cb27-163" aria-hidden="true" tabindex="-1"></a>    ) <span class="sc">%&gt;%</span> <span class="fu">as.numeric</span>()</span>
+<span id="cb27-164"><a href="#cb27-164" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb27-165"><a href="#cb27-165" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-166"><a href="#cb27-166" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(analytic)</span>
+<span id="cb27-167"><a href="#cb27-167" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb27-168"><a href="#cb27-168" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-169"><a href="#cb27-169" aria-hidden="true" tabindex="-1"></a><span class="fu">## A1.6 Complete-case analytic sample</span></span>
+<span id="cb27-170"><a href="#cb27-170" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-171"><a href="#cb27-171" aria-hidden="true" tabindex="-1"></a>For this appendix example we use complete cases.</span>
+<span id="cb27-172"><a href="#cb27-172" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-173"><a href="#cb27-173" aria-hidden="true" tabindex="-1"></a>(If you later decide to use multiple imputation, it can slot in here without changing the rest of the workflow.)</span>
+<span id="cb27-174"><a href="#cb27-174" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-177"><a href="#cb27-177" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
+<span id="cb27-178"><a href="#cb27-178" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: a1-complete-cases</span></span>
+<span id="cb27-179"><a href="#cb27-179" aria-hidden="true" tabindex="-1"></a><span class="co">#| include: true</span></span>
+<span id="cb27-180"><a href="#cb27-180" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-181"><a href="#cb27-181" aria-hidden="true" tabindex="-1"></a>analytic_clean <span class="ot">&lt;-</span> analytic[<span class="fu">complete.cases</span>(analytic), ]</span>
+<span id="cb27-182"><a href="#cb27-182" aria-hidden="true" tabindex="-1"></a>analytic_clean<span class="sc">$</span>IEP <span class="ot">&lt;-</span> <span class="fu">as.factor</span>(analytic_clean<span class="sc">$</span>IEP)</span>
+<span id="cb27-183"><a href="#cb27-183" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-184"><a href="#cb27-184" aria-hidden="true" tabindex="-1"></a><span class="fu">dim</span>(analytic_clean)</span>
+<span id="cb27-185"><a href="#cb27-185" aria-hidden="true" tabindex="-1"></a><span class="fu">table</span>(analytic_clean<span class="sc">$</span>IEP)</span>
+<span id="cb27-186"><a href="#cb27-186" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb27-187"><a href="#cb27-187" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-188"><a href="#cb27-188" aria-hidden="true" tabindex="-1"></a><span class="fu">## A1.7 Estimate CBPS weights (ATE)</span></span>
+<span id="cb27-189"><a href="#cb27-189" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-190"><a href="#cb27-190" aria-hidden="true" tabindex="-1"></a>We use **CBPS** to estimate weights that balance covariates by construction.</span>
+<span id="cb27-191"><a href="#cb27-191" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-192"><a href="#cb27-192" aria-hidden="true" tabindex="-1"></a>Then we normalize the weights so the average weight is 1 (helps with interpretability and avoids tiny/huge totals).</span>
+<span id="cb27-193"><a href="#cb27-193" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-196"><a href="#cb27-196" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
+<span id="cb27-197"><a href="#cb27-197" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: a1-cbps-iptw</span></span>
+<span id="cb27-198"><a href="#cb27-198" aria-hidden="true" tabindex="-1"></a><span class="co">#| include: true</span></span>
+<span id="cb27-199"><a href="#cb27-199" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-200"><a href="#cb27-200" aria-hidden="true" tabindex="-1"></a>cbps_fit <span class="ot">&lt;-</span> <span class="fu">CBPS</span>(</span>
+<span id="cb27-201"><a href="#cb27-201" aria-hidden="true" tabindex="-1"></a>  IEP <span class="sc">~</span> female <span class="sc">+</span> race_white <span class="sc">+</span> race_black <span class="sc">+</span></span>
+<span id="cb27-202"><a href="#cb27-202" aria-hidden="true" tabindex="-1"></a>    dual_lang <span class="sc">+</span> locale_rural <span class="sc">+</span> SES <span class="sc">+</span> divorced <span class="sc">+</span></span>
+<span id="cb27-203"><a href="#cb27-203" aria-hidden="true" tabindex="-1"></a>    bachelorabove1 <span class="sc">+</span> bachelorabove2 <span class="sc">+</span> LD <span class="sc">+</span> DD,</span>
+<span id="cb27-204"><a href="#cb27-204" aria-hidden="true" tabindex="-1"></a>  <span class="at">data =</span> analytic_clean,</span>
+<span id="cb27-205"><a href="#cb27-205" aria-hidden="true" tabindex="-1"></a>  <span class="at">method =</span> <span class="st">"exact"</span>,</span>
+<span id="cb27-206"><a href="#cb27-206" aria-hidden="true" tabindex="-1"></a>  <span class="at">ATT =</span> <span class="dv">0</span></span>
+<span id="cb27-207"><a href="#cb27-207" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb27-208"><a href="#cb27-208" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-209"><a href="#cb27-209" aria-hidden="true" tabindex="-1"></a>analytic_clean<span class="sc">$</span>IPTW <span class="ot">&lt;-</span> cbps_fit<span class="sc">$</span>weights</span>
+<span id="cb27-210"><a href="#cb27-210" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(analytic_clean<span class="sc">$</span>IPTW)</span>
+<span id="cb27-211"><a href="#cb27-211" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-212"><a href="#cb27-212" aria-hidden="true" tabindex="-1"></a><span class="co"># Normalize weights: mean(weight) = 1</span></span>
+<span id="cb27-213"><a href="#cb27-213" aria-hidden="true" tabindex="-1"></a>analytic_clean<span class="sc">$</span>finalWeightATE <span class="ot">&lt;-</span> <span class="fu">with</span>(analytic_clean, IPTW <span class="sc">/</span> <span class="fu">mean</span>(IPTW))</span>
+<span id="cb27-214"><a href="#cb27-214" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-215"><a href="#cb27-215" aria-hidden="true" tabindex="-1"></a><span class="fu">with</span>(analytic_clean, <span class="fu">by</span>(finalWeightATE, IEP, summary))</span>
+<span id="cb27-216"><a href="#cb27-216" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb27-217"><a href="#cb27-217" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-218"><a href="#cb27-218" aria-hidden="true" tabindex="-1"></a><span class="fu">## A1.8 Covariate balance (before vs after weighting)</span></span>
+<span id="cb27-219"><a href="#cb27-219" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-220"><a href="#cb27-220" aria-hidden="true" tabindex="-1"></a>This is the gut-check step: if weighting doesn’t improve balance, we don’t trust the ATE estimate.</span>
+<span id="cb27-221"><a href="#cb27-221" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-224"><a href="#cb27-224" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
+<span id="cb27-225"><a href="#cb27-225" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: a1-balance-check</span></span>
+<span id="cb27-226"><a href="#cb27-226" aria-hidden="true" tabindex="-1"></a><span class="co">#| include: true</span></span>
+<span id="cb27-227"><a href="#cb27-227" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-228"><a href="#cb27-228" aria-hidden="true" tabindex="-1"></a>covnames <span class="ot">&lt;-</span> <span class="fu">c</span>(</span>
+<span id="cb27-229"><a href="#cb27-229" aria-hidden="true" tabindex="-1"></a>  <span class="st">"female"</span>, <span class="st">"race_white"</span>, <span class="st">"race_black"</span>,</span>
+<span id="cb27-230"><a href="#cb27-230" aria-hidden="true" tabindex="-1"></a>  <span class="st">"dual_lang"</span>, <span class="st">"locale_rural"</span>, <span class="st">"SES"</span>, <span class="st">"divorced"</span>,</span>
+<span id="cb27-231"><a href="#cb27-231" aria-hidden="true" tabindex="-1"></a>  <span class="st">"bachelorabove1"</span>, <span class="st">"bachelorabove2"</span>,</span>
+<span id="cb27-232"><a href="#cb27-232" aria-hidden="true" tabindex="-1"></a>  <span class="st">"LD"</span>, <span class="st">"DD"</span></span>
+<span id="cb27-233"><a href="#cb27-233" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb27-234"><a href="#cb27-234" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-235"><a href="#cb27-235" aria-hidden="true" tabindex="-1"></a>balance_before <span class="ot">&lt;-</span> <span class="fu">bal.stat</span>(</span>
+<span id="cb27-236"><a href="#cb27-236" aria-hidden="true" tabindex="-1"></a>  <span class="at">data =</span> analytic_clean,</span>
+<span id="cb27-237"><a href="#cb27-237" aria-hidden="true" tabindex="-1"></a>  <span class="at">vars =</span> covnames,</span>
+<span id="cb27-238"><a href="#cb27-238" aria-hidden="true" tabindex="-1"></a>  <span class="at">treat.var =</span> <span class="st">"IEP"</span>,</span>
+<span id="cb27-239"><a href="#cb27-239" aria-hidden="true" tabindex="-1"></a>  <span class="at">w.all =</span> <span class="dv">1</span>,</span>
+<span id="cb27-240"><a href="#cb27-240" aria-hidden="true" tabindex="-1"></a>  <span class="at">get.ks =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb27-241"><a href="#cb27-241" aria-hidden="true" tabindex="-1"></a>  <span class="at">sampw =</span> <span class="dv">1</span>,</span>
+<span id="cb27-242"><a href="#cb27-242" aria-hidden="true" tabindex="-1"></a>  <span class="at">estimand =</span> <span class="st">"ATE"</span>,</span>
+<span id="cb27-243"><a href="#cb27-243" aria-hidden="true" tabindex="-1"></a>  <span class="at">multinom =</span> <span class="cn">FALSE</span></span>
+<span id="cb27-244"><a href="#cb27-244" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb27-245"><a href="#cb27-245" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-246"><a href="#cb27-246" aria-hidden="true" tabindex="-1"></a>balance_after <span class="ot">&lt;-</span> <span class="fu">bal.stat</span>(</span>
+<span id="cb27-247"><a href="#cb27-247" aria-hidden="true" tabindex="-1"></a>  <span class="at">data =</span> analytic_clean,</span>
+<span id="cb27-248"><a href="#cb27-248" aria-hidden="true" tabindex="-1"></a>  <span class="at">vars =</span> covnames,</span>
+<span id="cb27-249"><a href="#cb27-249" aria-hidden="true" tabindex="-1"></a>  <span class="at">treat.var =</span> <span class="st">"IEP"</span>,</span>
+<span id="cb27-250"><a href="#cb27-250" aria-hidden="true" tabindex="-1"></a>  <span class="at">w.all =</span> analytic_clean[, <span class="st">"finalWeightATE"</span>],</span>
+<span id="cb27-251"><a href="#cb27-251" aria-hidden="true" tabindex="-1"></a>  <span class="at">get.ks =</span> <span class="cn">FALSE</span>,</span>
+<span id="cb27-252"><a href="#cb27-252" aria-hidden="true" tabindex="-1"></a>  <span class="at">sampw =</span> <span class="dv">1</span>,</span>
+<span id="cb27-253"><a href="#cb27-253" aria-hidden="true" tabindex="-1"></a>  <span class="at">estimand =</span> <span class="st">"ATE"</span>,</span>
+<span id="cb27-254"><a href="#cb27-254" aria-hidden="true" tabindex="-1"></a>  <span class="at">multinom =</span> <span class="cn">FALSE</span></span>
+<span id="cb27-255"><a href="#cb27-255" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb27-256"><a href="#cb27-256" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-257"><a href="#cb27-257" aria-hidden="true" tabindex="-1"></a>balance_before</span>
+<span id="cb27-258"><a href="#cb27-258" aria-hidden="true" tabindex="-1"></a>balance_after</span>
+<span id="cb27-259"><a href="#cb27-259" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb27-260"><a href="#cb27-260" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-261"><a href="#cb27-261" aria-hidden="true" tabindex="-1"></a><span class="fu">## A1.9 Weighted outcome model (survey regression)</span></span>
+<span id="cb27-262"><a href="#cb27-262" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-263"><a href="#cb27-263" aria-hidden="true" tabindex="-1"></a>We fit a simple weighted regression of <span class="in">`X1SCIEFF`</span> on <span class="in">`IEP`</span>.</span>
+<span id="cb27-264"><a href="#cb27-264" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-265"><a href="#cb27-265" aria-hidden="true" tabindex="-1"></a>The design object uses the CBPS weights.</span>
+<span id="cb27-266"><a href="#cb27-266" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-269"><a href="#cb27-269" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
+<span id="cb27-270"><a href="#cb27-270" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: a1-weighted-model</span></span>
+<span id="cb27-271"><a href="#cb27-271" aria-hidden="true" tabindex="-1"></a><span class="co">#| include: true</span></span>
+<span id="cb27-272"><a href="#cb27-272" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-273"><a href="#cb27-273" aria-hidden="true" tabindex="-1"></a>design_IPTW <span class="ot">&lt;-</span> <span class="fu">svydesign</span>(</span>
+<span id="cb27-274"><a href="#cb27-274" aria-hidden="true" tabindex="-1"></a>  <span class="at">id =</span> <span class="sc">~</span><span class="dv">1</span>,</span>
+<span id="cb27-275"><a href="#cb27-275" aria-hidden="true" tabindex="-1"></a>  <span class="at">weights =</span> <span class="sc">~</span>finalWeightATE,</span>
+<span id="cb27-276"><a href="#cb27-276" aria-hidden="true" tabindex="-1"></a>  <span class="at">data =</span> analytic_clean</span>
+<span id="cb27-277"><a href="#cb27-277" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb27-278"><a href="#cb27-278" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-279"><a href="#cb27-279" aria-hidden="true" tabindex="-1"></a>model_IPTW <span class="ot">&lt;-</span> <span class="fu">svyglm</span>(X1SCIEFF <span class="sc">~</span> IEP, <span class="at">design =</span> design_IPTW)</span>
+<span id="cb27-280"><a href="#cb27-280" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(model_IPTW)</span>
+<span id="cb27-281"><a href="#cb27-281" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+<span id="cb27-282"><a href="#cb27-282" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-283"><a href="#cb27-283" aria-hidden="true" tabindex="-1"></a><span class="fu">## A1.10 Sensitivity analysis (Konfound)</span></span>
+<span id="cb27-284"><a href="#cb27-284" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-285"><a href="#cb27-285" aria-hidden="true" tabindex="-1"></a>Here we run <span class="in">`konfound`</span> using the reported estimate and standard error.</span>
+<span id="cb27-286"><a href="#cb27-286" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-287"><a href="#cb27-287" aria-hidden="true" tabindex="-1"></a>In practice, you’ll usually pull the estimate/SE directly from the fitted model output, but the hard-coded values are fine for a fixed appendix example.</span>
+<span id="cb27-288"><a href="#cb27-288" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-291"><a href="#cb27-291" aria-hidden="true" tabindex="-1"></a><span class="in">```{r}</span></span>
+<span id="cb27-292"><a href="#cb27-292" aria-hidden="true" tabindex="-1"></a><span class="co">#| label: a1-konfound</span></span>
+<span id="cb27-293"><a href="#cb27-293" aria-hidden="true" tabindex="-1"></a><span class="co">#| include: true</span></span>
+<span id="cb27-294"><a href="#cb27-294" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-295"><a href="#cb27-295" aria-hidden="true" tabindex="-1"></a><span class="co"># RIR index</span></span>
+<span id="cb27-296"><a href="#cb27-296" aria-hidden="true" tabindex="-1"></a><span class="fu">pkonfound</span>(</span>
+<span id="cb27-297"><a href="#cb27-297" aria-hidden="true" tabindex="-1"></a>  <span class="at">est_eff =</span> <span class="sc">-</span><span class="fl">0.63613</span>,</span>
+<span id="cb27-298"><a href="#cb27-298" aria-hidden="true" tabindex="-1"></a>  <span class="at">std_err =</span> <span class="fl">0.16460</span>,</span>
+<span id="cb27-299"><a href="#cb27-299" aria-hidden="true" tabindex="-1"></a>  <span class="at">n_obs =</span> <span class="dv">5282</span>,</span>
+<span id="cb27-300"><a href="#cb27-300" aria-hidden="true" tabindex="-1"></a>  <span class="at">n_covariates =</span> <span class="dv">1</span>,</span>
+<span id="cb27-301"><a href="#cb27-301" aria-hidden="true" tabindex="-1"></a>  <span class="at">index =</span> <span class="st">"RIR"</span></span>
+<span id="cb27-302"><a href="#cb27-302" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb27-303"><a href="#cb27-303" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-304"><a href="#cb27-304" aria-hidden="true" tabindex="-1"></a><span class="co"># IT index</span></span>
+<span id="cb27-305"><a href="#cb27-305" aria-hidden="true" tabindex="-1"></a><span class="fu">pkonfound</span>(</span>
+<span id="cb27-306"><a href="#cb27-306" aria-hidden="true" tabindex="-1"></a>  <span class="at">est_eff =</span> <span class="sc">-</span><span class="fl">0.63613</span>,</span>
+<span id="cb27-307"><a href="#cb27-307" aria-hidden="true" tabindex="-1"></a>  <span class="at">std_err =</span> <span class="fl">0.16460</span>,</span>
+<span id="cb27-308"><a href="#cb27-308" aria-hidden="true" tabindex="-1"></a>  <span class="at">n_obs =</span> <span class="dv">5282</span>,</span>
+<span id="cb27-309"><a href="#cb27-309" aria-hidden="true" tabindex="-1"></a>  <span class="at">n_covariates =</span> <span class="dv">1</span>,</span>
+<span id="cb27-310"><a href="#cb27-310" aria-hidden="true" tabindex="-1"></a>  <span class="at">index =</span> <span class="st">"IT"</span></span>
+<span id="cb27-311"><a href="#cb27-311" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb27-312"><a href="#cb27-312" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span>
+</code><button title="Copy to Clipboard" class="code-copy-button" data-in-quarto-modal=""><i class="bi"></i></button></pre></div>
+</div></div></div></div></div>
+</div> <!-- /content -->
+
+
+
+
+</body></html>

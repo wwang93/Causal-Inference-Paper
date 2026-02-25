@@ -1,0 +1,333 @@
+---
+title: "Appendix A3. Difference-in-Differences (DiD) Example"
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    code-fold: true
+    code-tools: true
+    number-sections: false
+execute:
+  warning: false
+  message: false
+  cache: true
+  freeze: auto
+---
+
+## Overview
+
+This appendix illustrates a simple two-period DiD setup using HSLS variables.
+The outcome is science self-efficacy measured at baseline (`X1SCIEFF`) and follow-up (`X2SCIEFF`).
+Schools are treated if they adopt a PD requirement by follow-up (while having no requirement at baseline).
+We estimate a baseline DiD and then a version that adds student covariates for precision.
+
+
+## A3.1 Setup
+
+```{r}
+#| label: a3-setup
+#| include: true
+
+set.seed(123)
+
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(fixest)
+library(konfound)
+```
+
+## A3.2 Load data
+```{r}
+#| label: a3-load-data
+#| include: true
+
+load("hsls_17_student_pets_sr_v1_0.RData")
+hsls <- hsls_17_student_pets_sr_v1_0
+
+dim(hsls)
+```
+## A3.3 Select variables used in the example
+```{r}
+#| label: a3-select-vars
+#| include: true
+
+vars_needed <- hsls[, c(
+  "STU_ID",
+  "SCH_ID",
+  "A1MSPDLEARN",
+  "A2MSPDLEARN",
+  "X1SCIEFF",
+  "X2SCIEFF",
+  "X1SEX",
+  "X1RACE",
+  "X1DUALLANG",
+  "X1LOCALE",
+  "X1SESQ5"
+)]
+
+summary(vars_needed)
+```
+## A3.4 Recode labeled missing categories as NA
+
+HSLS includes several labeled categories that essentially mean "missing" or "not applicable".
+
+For this example, we drop them by recoding to `NA`.
+
+```{r}
+#| label: a3-handle-missing
+#| include: true
+
+missing_levels <- c(
+  "Item legitimate skip/NA",
+  "Unit non-response",
+  "Missing",
+  "Item not administered: abbreviated interview",
+  "Component not applicable"
+)
+
+vars_clean <- vars_needed %>%
+  mutate(across(
+    .cols = c(A1MSPDLEARN, A2MSPDLEARN,
+              X1SEX, X1RACE, X1DUALLANG, X1LOCALE, X1SESQ5),
+    .fns = ~ ifelse(as.character(.x) %in% missing_levels, NA, as.character(.x))
+  ))
+
+summary(vars_clean)
+```
+
+## A3.5 Construct treatment indicators and covariates
+
+Here `a1` and `a2` indicate whether a PD requirement is present at baseline vs follow-up.
+
+We also create a compact set of student-level covariates.
+```{r}
+#| label: a3-construct-vars
+#| include: true
+
+analytic <- vars_clean %>%
+  mutate(
+    a1 = if_else(A1MSPDLEARN == "Yes", 1, 0, missing = NA),
+    a2 = if_else(A2MSPDLEARN == "Yes", 1, 0, missing = NA),
+
+    female = if_else(X1SEX == "Female", 1, 0, missing = NA),
+
+    race_white = if_else(X1RACE == "White, non-Hispanic", 1, 0, missing = NA),
+    race_black = if_else(X1RACE == "Black/African-American, non-Hispanic", 1, 0, missing = NA),
+    race_asian = if_else(X1RACE == " Asian, non-Hispanic ", 1, 0, missing = NA),
+
+    dual_lang = if_else(X1DUALLANG == "First language is English only", 1, 0, missing = NA),
+    locale_rural = if_else(X1LOCALE == "Rural", 1, 0, missing = NA)
+  ) %>%
+  mutate(
+    SES = factor(
+      X1SESQ5,
+      levels = c(
+        "First quintile (lowest)",
+        "Second quintile",
+        "Third quintile",
+        "Fourth quintile",
+        "Fifth quintile (highest)"
+      ),
+      labels = c(1, 2, 3, 4, 5)
+    ) %>% as.numeric()
+  )
+
+summary(analytic)
+```
+## A3.6 Complete-case sample
+
+For a clean appendix example, we use complete cases.
+
+(If your main paper uses a different missing-data strategy, this is the place to swap it in.)
+```{r}
+#| label: a3-complete-cases
+#| include: true
+
+analytic_clean <- analytic[complete.cases(analytic), ]
+dim(analytic_clean)
+```
+
+## A3.7 Define treated vs never-treated schools (based on adoption)
+
+We restrict to schools with **no requirement at baseline** (`a1 == 0`).
+
+Then:
+
+- treated schools: adopt by follow-up (`a2 == 1`)
+- control schools: never adopt (`a2 == 0`)
+```{r}
+#| label: a3-define-groups
+#| include: true
+
+hsls_did <- analytic_clean %>%
+  filter(a1 == 0) %>%
+  mutate(
+    treat_school  = ifelse(a1 == 0 & a2 == 1, 1, 0),
+    never_treated = ifelse(a1 == 0 & a2 == 0, 1, 0)
+  ) %>%
+  filter(treat_school == 1 | never_treated == 1)
+
+table(hsls_did$treat_school)
+```
+## A3.8 Simulate school IDs for clustering (SCH_ID_SIM)
+
+In a proper DiD, you normally already have a stable school identifier for clustering.
+
+Here we simulate a school ID assignment to keep the example self-contained (and to show the mechanics of clustering in `fixest`).
+```{r}
+#| label: a3-simulate-school-ids
+#| include: true
+
+# Student counts by adoption status at follow-up
+n_treatment_students <- sum(hsls_did$a2 == 1, na.rm = TRUE)
+n_control_students   <- sum(hsls_did$a2 == 0, na.rm = TRUE)
+
+# Allocate schools proportionally (tweak if you want)
+n_total_schools <- 80
+prop_treatment <- n_treatment_students / (n_treatment_students + n_control_students)
+
+n_schools_treatment <- round(n_total_schools * prop_treatment)
+n_schools_control   <- n_total_schools - n_schools_treatment
+
+# Assign simulated school IDs
+hsls_did$SCH_ID_SIM <- NA_integer_
+
+idx_treatment <- hsls_did$a2 == 1
+hsls_did$SCH_ID_SIM[idx_treatment] <-
+  sample(1:n_schools_treatment, sum(idx_treatment), replace = TRUE)
+
+idx_control <- hsls_did$a2 == 0
+hsls_did$SCH_ID_SIM[idx_control] <-
+  sample((n_schools_treatment + 1):(n_schools_treatment + n_schools_control),
+         sum(idx_control), replace = TRUE)
+
+table(hsls_did$SCH_ID_SIM)[1:10]
+```
+## A3.9 Reshape to long format (two rows per student)
+
+We stack baseline and follow-up outcomes, then create:
+
+- `post`: 0 baseline, 1 follow-up
+- `treat_post`: DiD interaction term
+```{r}
+#| label: a3-long-format
+#| include: true
+
+cols_to_keep <- c(
+  "STU_ID", "SCH_ID_SIM", "treat_school",
+  "X1SCIEFF", "X2SCIEFF",
+  "female", "race_white", "race_black", "race_asian",
+  "dual_lang", "locale_rural", "SES"
+)
+
+hsls_long <- hsls_did[, cols_to_keep] %>%
+  pivot_longer(
+    cols      = c(X1SCIEFF, X2SCIEFF),
+    names_to  = "wave",
+    values_to = "SCI_SE"
+  ) %>%
+  mutate(
+    post       = ifelse(wave == "X2SCIEFF", 1, 0),
+    treat_post = treat_school * post
+  )
+
+table(hsls_long$post)
+```
+## A3.10 DiD estimation (two-way setup with school fixed effects)
+
+### (a) Basic DiD
+
+This is the clean baseline model: outcome on `post` and `treat_post`, with school fixed effects.
+```{r}
+#| label: a3-did-basic
+#| include: true
+
+did_basic <- feols(
+  SCI_SE ~ post + treat_post | SCH_ID_SIM,
+  data = hsls_long
+)
+
+summary(did_basic)
+```
+
+### (b) DiD with student covariates (precision controls)
+
+Adding covariates is not required for identification in DiD, but it can help precision and guard against small sample quirks.
+```{r}
+#| label: a3-did-covariates
+#| include: true
+
+did_cov <- feols(
+  SCI_SE ~ post + treat_post +
+    female + race_white + race_black + race_asian +
+    dual_lang + locale_rural + SES | SCH_ID_SIM,
+  data = hsls_long
+)
+
+summary(did_cov)
+```
+## A3.11 Mean trends plot (treated vs control)
+
+This plot is a quick visual check of how treated and control groups move from baseline to follow-up.
+
+With only two time points, we can’t really “test” parallel trends, but at least we can see whether the groups are moving in obviously different ways.
+```{r}
+#| label: a3-trends
+#| fig-cap: "Mean science self-efficacy over time by treatment group."
+#| include: true
+
+trend_dat <- hsls_long %>%
+  group_by(treat_school, post) %>%
+  summarise(
+    mean_SCI_SE = mean(SCI_SE, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+ggplot(
+  trend_dat,
+  aes(
+    x = post,
+    y = mean_SCI_SE,
+    group = factor(treat_school),
+    linetype = factor(treat_school),
+    shape = factor(treat_school)
+  )
+) +
+  geom_line() +
+  geom_point(size = 3) +
+  geom_vline(xintercept = 0.5, linetype = "dashed", color = "gray50", linewidth = 0.8) +
+  scale_x_continuous(breaks = c(0, 1), labels = c("Baseline", "Follow-up")) +
+  labs(
+    x = "Wave",
+    y = "Mean science self-efficacy",
+    linetype = "Treated school",
+    shape = "Treated school",
+    caption = "Dashed line marks the intervention period."
+  ) +
+  theme_minimal()
+```
+## A3.12 Sensitivity analysis (Konfound)
+
+Below we run `konfound` using the estimate and SE you provided for the DiD effect.
+```{r}
+#| label: a3-konfound
+#| include: true
+
+pkonfound(
+  est_eff      = -0.0346,
+  std_err      = 0.1025,
+  n_obs        = 6356,
+  n_covariates = 2,
+  index        = "RIR"
+)
+
+pkonfound(
+  est_eff      = -0.0346,
+  std_err      = 0.1025,
+  n_obs        = 6356,
+  n_covariates = 2,
+  index        = "IT"
+)
+```
+

@@ -1,0 +1,143 @@
+---
+title: "Appendix A4. Instrumental Variables (IV / 2SLS) Example"
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    code-fold: true
+    code-tools: true
+    number-sections: false
+execute:
+  warning: false
+  message: false
+  cache: true
+  freeze: auto
+---
+
+## Overview
+
+This appendix gives a small IV example using simulated data.  
+We generate a setting where the treatment (`friends`, having friends in the classroom) is confounded by an unobserved factor (`motivation`).  
+A plausible instrument (`distance`, minutes to school) affects the treatment but does not directly affect test scores except through treatment.
+
+We then estimate the effect of `friends` on `scores` using 2SLS and run a [konfound](https://cran.r-project.org/web/packages/konfound/index.html) sensitivity analysis on the IV estimate.
+
+---
+
+## A4.1 Setup
+
+```{r}
+#| label: a4-setup
+#| include: true
+
+set.seed(123)
+
+library(AER)      # provides ivreg()
+library(konfound)
+library(dplyr)
+```
+
+## A4.2 Simulate data
+
+A quick note on the simulation logic:
+
+- `motivation` affects both `friends` and `scores` (this is the confounder).
+- `distance` shifts the likelihood of `friends` but does not enter the outcome equation directly.
+
+```{r}
+#| label: a4-simulate
+#| include: true
+
+n <- 2000
+
+# Instrument: distance to school (minutes)
+distance <- rnorm(n, mean = 20, sd = 8)
+
+# Unobserved confounder: student motivation
+motivation <- rnorm(n)
+
+# Treatment: having friends in the classroom (binary)
+prob_friends <- plogis(-0.5 + 0.08 * distance - 0.5 * motivation)
+friends <- rbinom(n, 1, prob_friends)
+
+# Outcome: test scores (friends has a true causal effect of +3)
+scores <- 50 + 3 * friends + 5 * motivation + rnorm(n, sd = 5)
+
+dat <- data.frame(scores, friends, distance, motivation)
+
+summary(dat)
+```
+
+## A4.3 Why IV is useful here (quick check)
+
+If we regress `scores` on `friends` directly, motivation will bias the estimate because it’s omitted and correlated with `friends`.
+
+```{r}
+#| label: a4-ols
+#| include: true
+
+ols_model <- lm(scores ~ friends, data = dat)
+summary(ols_model)
+```
+
+
+
+## A4.4 2SLS / IV estimation
+
+We instrument `friends` with `distance`:
+
+[
+
+scores = \beta_0 + \beta_1 friends + \varepsilon,\quad friends \leftarrow distance
+
+]
+
+```{r}
+#| label: a4-iv
+#| include: true
+
+iv_model <- ivreg(scores ~ friends | distance, data = dat)
+summary(iv_model)
+```
+
+
+## A4.5 First-stage strength (diagnostic)
+
+This is a practical check: if the instrument barely moves treatment, IV will be noisy and potentially misleading.
+
+`summary(iv_model, diagnostics = TRUE)` reports common diagnostics (including a weak instrument test).
+
+```{r}
+#| label: a4-iv-diagnostics
+#| include: true
+
+summary(iv_model, diagnostics = TRUE)
+```
+
+
+## A4.6 Sensitivity analysis (Konfound)
+
+Below we run `konfound` using the estimate and SE you provided.
+
+If you want this fully reproducible end-to-end, we can extract these values directly from the model object instead of hard-coding them.
+
+```{r}
+#| label: a4-konfound
+#| include: true
+
+pkonfound(
+  est_eff      = 2.5918,
+  std_err      = 1.2526,
+  n_obs        = 2000,
+  n_covariates = 2,
+  index        = "RIR"
+)
+
+pkonfound(
+  est_eff      = 2.5918,
+  std_err      = 1.2526,
+  n_obs        = 2000,
+  n_covariates = 2,
+  index        = "IT"
+)
+```

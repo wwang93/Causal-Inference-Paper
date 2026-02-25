@@ -1,0 +1,292 @@
+---
+title: "Appendix A1. Propensity Score Weighting (CBPS-IPTW)"
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    code-fold: true
+    code-tools: true
+    number-sections: false
+execute:
+  warning: false
+  message: false
+  cache: true
+  freeze: auto
+---
+
+## Overview
+
+This appendix example estimates the average treatment effect (ATE) of having an IEP on science self-efficacy (`X1SCIEFF`). We (1) build an analytic dataset, (2) estimate propensity score weights using CBPS, (3) check covariate balance, (4) fit a weighted outcome model, and (5) run a sensitivity analysis with [konfound](https://cran.r-project.org/web/packages/konfound/index.html).
+
+## A1.1 Setup
+
+```{r}
+#| label: a1-setup
+#| include: true
+
+set.seed(12345)
+
+# Packages used in this example
+library(dplyr)
+library(CBPS)
+library(twang)
+library(survey)
+library(konfound)
+```
+
+## A1.2 Load data
+
+```{r}
+#| label: a1-load-data
+#| include: true
+load("hsls_17_student_pets_sr_v1_0.RData")
+hsls <- hsls_17_student_pets_sr_v1_0
+
+# Quick sanity check
+#dim(hsls)
+```
+
+## A1.3 Keep variables used in the example
+
+```{r}
+#| label: a1-select-vars
+#| include: true
+
+vars_needed <- dplyr::select(hsls,
+    STU_ID,        # student ID
+
+    # treatment
+    X1IEPFLAG,     # IEP status
+
+    # outcome
+    X1SCIEFF,      # science self-efficacy
+
+    # covariates
+    X1SEX,         # gender
+    X1RACE,        # race
+    X1DUALLANG,    # language background
+    X1LOCALE,      # locale
+
+    X1SESQ5,       # SES quintile
+    P1MARSTAT,     # parents' marital status
+    P1HIDEG1,      # parent 1 highest degree
+    P1HIDEG2,      # parent 2 highest degree
+    P1SLD,         # parent report: learning disability
+    P1DD           # parent report: developmental delay
+  )
+
+summary(vars_needed)
+```
+
+## A1.4 Recode missing categories as NA
+
+Some HSLS variables code missingness as labeled categories.
+
+Here we convert those labels to `NA` so that downstream modeling behaves as expected.
+
+```{r}
+#| label: a1-handle-missing-labels
+#| include: true
+
+missing_levels <- c(
+  "Item legitimate skip/NA",
+  "Unit non-response",
+  "Missing"
+)
+
+vars_clean <- vars_needed %>%
+  mutate(across(
+    .cols = c(X1IEPFLAG, X1SEX, X1RACE, X1DUALLANG, X1LOCALE,
+              X1SESQ5, P1MARSTAT, P1HIDEG1, P1HIDEG2, P1SLD, P1DD),
+    .fns = ~ ifelse(as.character(.x) %in% missing_levels, NA, as.character(.x))
+  ))
+
+summary(vars_clean)
+```
+
+## A1.5 Construct analysis variables (treatment + covariates)
+
+The goal here is not to be clever—just to turn a handful of key survey fields into clean indicators that are easy to use in the weighting model.
+
+```{r}
+#| label: a1-construct-variables
+#| include: true
+
+analytic <- vars_clean %>%
+  mutate(
+    # treatment: IEP
+    IEP = if_else(X1IEPFLAG == "Student has an IEP", 1, 0, missing = NA),
+
+    # demographics
+    female = if_else(X1SEX == "Female", 1, 0, missing = NA),
+
+    race_white = if_else(X1RACE == "White, non-Hispanic", 1, 0, missing = NA),
+    race_black = if_else(X1RACE == "Black/African-American, non-Hispanic", 1, 0, missing = NA),
+    race_asian = if_else(X1RACE == " Asian, non-Hispanic ", 1, 0, missing = NA),
+    race_hispanic = if_else(X1RACE == " Hispanic, race specified ", 1, 0, missing = NA),
+
+    # language / locale
+    dual_lang = if_else(X1DUALLANG == "First language is English only", 1, 0, missing = NA),
+    locale_rural = if_else(X1LOCALE == "Rural", 1, 0, missing = NA),
+
+    # family background
+    divorced = if_else(P1MARSTAT %in% c("Divorced", "Separated"), 1, 0, missing = NA),
+    bachelorabove1 = if_else(P1HIDEG1 %in% c("Bachelor's degree", "Master's degree"), 1, 0, missing = NA),
+    bachelorabove2 = if_else(P1HIDEG2 %in% c("Bachelor's degree", "Master's degree"), 1, 0, missing = NA),
+
+    # parent-reported conditions
+    LD = if_else(P1SLD == "Yes", 1, 0, missing = NA),
+    DD = if_else(P1DD == "Yes", 1, 0, missing = NA)
+  ) %>%
+  mutate(
+    # SES: convert ordered quintiles into a simple numeric scale 1–5
+    SES = factor(
+      X1SESQ5,
+      levels = c(
+        "First quintile (lowest)",
+        "Second quintile",
+        "Third quintile",
+        "Fourth quintile",
+        "Fifth quintile (highest)"
+      ),
+      labels = c(1, 2, 3, 4, 5)
+    ) %>% as.numeric()
+  )
+
+summary(analytic)
+```
+
+## A1.6 Complete-case analytic sample
+
+For this appendix example we use complete cases.
+
+(If you later decide to use multiple imputation, it can slot in here without changing the rest of the workflow.)
+
+```{r}
+#| label: a1-complete-cases
+#| include: true
+
+analytic_clean <- analytic[complete.cases(analytic), ]
+analytic_clean$IEP <- as.factor(analytic_clean$IEP)
+
+dim(analytic_clean)
+table(analytic_clean$IEP)
+```
+
+## A1.7 Estimate CBPS weights (ATE)
+
+We use **CBPS** to estimate weights that balance covariates by construction.
+
+Then we normalize the weights so the average weight is 1 (helps with interpretability and avoids tiny/huge totals).
+
+```{r}
+#| label: a1-cbps-iptw
+#| include: true
+
+cbps_fit <- CBPS(
+  IEP ~ female + race_white + race_black +
+    dual_lang + locale_rural + SES + divorced +
+    bachelorabove1 + bachelorabove2 + LD + DD,
+  data = analytic_clean,
+  method = "exact",
+  ATT = 0
+)
+
+analytic_clean$IPTW <- cbps_fit$weights
+summary(analytic_clean$IPTW)
+
+# Normalize weights: mean(weight) = 1
+analytic_clean$finalWeightATE <- with(analytic_clean, IPTW / mean(IPTW))
+
+with(analytic_clean, by(finalWeightATE, IEP, summary))
+```
+
+## A1.8 Covariate balance (before vs after weighting)
+
+This is the gut-check step: if weighting doesn’t improve balance, we don’t trust the ATE estimate.
+
+```{r}
+#| label: a1-balance-check
+#| include: true
+
+covnames <- c(
+  "female", "race_white", "race_black",
+  "dual_lang", "locale_rural", "SES", "divorced",
+  "bachelorabove1", "bachelorabove2",
+  "LD", "DD"
+)
+
+balance_before <- bal.stat(
+  data = analytic_clean,
+  vars = covnames,
+  treat.var = "IEP",
+  w.all = 1,
+  get.ks = FALSE,
+  sampw = 1,
+  estimand = "ATE",
+  multinom = FALSE
+)
+
+balance_after <- bal.stat(
+  data = analytic_clean,
+  vars = covnames,
+  treat.var = "IEP",
+  w.all = analytic_clean[, "finalWeightATE"],
+  get.ks = FALSE,
+  sampw = 1,
+  estimand = "ATE",
+  multinom = FALSE
+)
+
+balance_before
+balance_after
+```
+
+## A1.9 Weighted outcome model (survey regression)
+
+We fit a simple weighted regression of `X1SCIEFF` on `IEP`.
+
+The design object uses the CBPS weights.
+
+```{r}
+#| label: a1-weighted-model
+#| include: true
+
+design_IPTW <- svydesign(
+  id = ~1,
+  weights = ~finalWeightATE,
+  data = analytic_clean
+)
+
+model_IPTW <- svyglm(X1SCIEFF ~ IEP, design = design_IPTW)
+summary(model_IPTW)
+```
+
+## A1.10 Sensitivity analysis (Konfound)
+
+Here we run `konfound` using the reported estimate and standard error.
+
+In practice, you’ll usually pull the estimate/SE directly from the fitted model output, but the hard-coded values are fine for a fixed appendix example.
+
+```{r}
+#| label: a1-konfound
+#| include: true
+
+# RIR index
+pkonfound(
+  est_eff = -0.63613,
+  std_err = 0.16460,
+  n_obs = 5282,
+  n_covariates = 1,
+  index = "RIR"
+)
+
+# IT index
+pkonfound(
+  est_eff = -0.63613,
+  std_err = 0.16460,
+  n_obs = 5282,
+  n_covariates = 1,
+  index = "IT"
+)
+```
