@@ -1,0 +1,89 @@
+---
+title: "Causal Inference Methods – Worked Examples"
+format:
+  html:
+    toc: false
+    number-sections: false
+    theme: cosmo
+---
+
+## Overview
+
+This supplement provides four worked examples of design-based causal inference methods frequently used in science and education research: propensity score weighting, regression discontinuity, difference-in-differences, and instrumental variables.
+
+Each example illustrates the logic of identification, the assumptions required for causal interpretation, and standard diagnostic and robustness checks. Sensitivity analysis accompanies each design to assess how strongly conclusions depend on unverifiable assumptions.
+
+The aim is to clarify how different research designs support causal claims, and to demonstrate how methodological transparency strengthens statistical conclusions.
+
+## Included Methods
+
+### 1. Propensity Score Weighting (CBPS)
+
+A full example of inverse probability of treatment weighting using Covariate Balancing Propensity Scores (CBPS), including:
+
+- Construction of analytic variables
+- Balance diagnostics (before and after weighting)
+- Weighted outcome regression
+- Sensitivity analysis using `konfound`
+
+👉 **Open the example:**  
+[Appendix A1 – Propensity Score Weighting](appendix-a1-psm.html)
+
+
+### 2. Regression Discontinuity (Sharp RD)
+
+A simulated sharp RD design demonstrating:
+
+- Bandwidth selection (MSE-optimal)
+- RD estimation with and without covariates
+- Density / manipulation tests
+- Covariate balance checks
+- Bandwidth sensitivity
+- Sensitivity analysis with `konfound`
+
+👉 **Open the example:**  
+[Appendix A2 – Regression Discontinuity](appendix-a2-rdd.html)
+
+
+### 3. Difference-in-Differences (Two-Period DiD)
+
+A two-wave DiD example using school-level treatment adoption:
+
+- Sample construction
+- Long-format panel restructuring
+- Fixed-effects estimation (`fixest`)
+- Visual trend inspection
+- Sensitivity analysis with `konfound`
+
+👉 **Open the example:**  
+[Appendix A3 – Difference-in-Differences](appendix-a3-did.html)
+
+
+### 4. Instrumental Variables (2SLS)
+
+A simulated IV example illustrating:
+
+- Endogeneity from unobserved confounding
+- Two-stage least squares estimation
+- First-stage diagnostics
+- Sensitivity analysis with `konfound`
+
+👉 **Open the example:**  
+[Appendix A4 – Instrumental Variables](appendix-a4-iv.html)
+
+
+## Notes on Reproducibility
+
+- All examples are written as independent `.qmd` files.
+- Required packages are loaded within each file.
+- Rendered HTML documents are included for convenience.
+- Supporting helper file: `rdplot_function.R` (used in the RDD example).
+
+To re-render any example:
+
+```r
+quarto render appendix-a1-psm.qmd
+quarto render appendix-a2-rdd.qmd
+quarto render appendix-a3-did.qmd
+quarto render appendix-a4-iv.qmd
+```
